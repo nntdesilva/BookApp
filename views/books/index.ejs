@@ -1,0 +1,55 @@
+<% layout('layouts/boilerplate') %>
+
+<div class="header">
+    <a href="/" class="home-link">
+        <h1><i class="fas fa-book"></i>Bibliothèque</h1>
+    </a>
+    <p class="subtitle">A Literary Collection</p>
+</div>
+
+<div class="search-section">
+    <form action="/search" method="POST" class="search-form">
+        <div class="search-container">
+            <input 
+                type="text" 
+                name="bookName" 
+                id="bookName" 
+                class="search-input" 
+                placeholder="Search for a book..."
+                value="<%= searchQuery %>"
+                required
+            >
+            <button type="submit" class="search-button">
+                <i class="fas fa-search"></i> Search
+            </button>
+        </div>
+    </form>
+</div>
+
+<% if (typeof error !== 'undefined' && error) { %>
+    <div class="alert alert-error">
+        <i class="fas fa-exclamation-circle"></i>
+        <%= error %>
+    </div>
+<% } %>
+
+<% if (bookInfo) { %>
+    <div class="results-section">
+        <h2>—</h2>
+        <div class="book-info-card">
+            <div class="book-content">
+                <%= bookInfo %>
+            </div>
+        </div>
+        <div class="search-again">
+            <a href="/" class="btn-search-again">← New Search</a>
+        </div>
+    </div>
+<% } %>
+
+<% if (!bookInfo && !error && searchQuery === '') { %>
+    <div class="welcome-message">
+        <i class="fas fa-book-open"></i>
+        <p>Explore the world of literature</p>
+    </div>
+<% } %>
