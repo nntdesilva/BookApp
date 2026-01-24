@@ -1,0 +1,196 @@
+# Changelog
+
+All notable changes to the BookApp project will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [0.1.0] - 2026-01-22
+
+### Initial Release
+
+BookApp is an AI-powered book search application that allows users to search for books and receive detailed information powered by OpenAI's ChatGPT API. The application features a clean, elegant literary-themed interface inspired by classic libraries.
+
+### Added
+
+#### Core Functionality
+- **Book Search Feature**: Implemented POST `/search` endpoint for searching books by name
+- **AI Integration**: Integrated OpenAI ChatGPT API (GPT-3.5-turbo) for intelligent book information retrieval
+- **Smart Book Information**: AI returns comprehensive details including:
+  - Author name
+  - Publication year
+  - Genre classification
+  - Brief summary (150-200 words)
+
+#### Architecture & Structure
+- **MVC Pattern**: Organized codebase following Model-View-Controller architecture
+  - Controllers: `bookController.js` handles search logic and AI interaction
+  - Routes: `books.js` defines RESTful routing structure
+  - Views: EJS templates with layout system
+- **Express.js Server**: Main application setup in `app.js` with middleware configuration
+- **RESTful Routes**: Clean routing structure with GET `/` for home and POST `/search` for queries
+
+#### Frontend & UI
+- **Elegant Design**: Literary-themed interface named "Bibliothèque - A Literary Collection"
+- **Typography**: Premium fonts (Playfair Display, Cormorant Garamond) for sophisticated look
+- **Color Scheme**: Warm, book-inspired palette (#f8f6f1 background, #1a1a1a text, #d4c5a9 accents)
+- **Responsive Design**: Mobile-friendly layout with media queries for tablets and phones
+- **Animated Elements**: Smooth fade-in animations for results and error messages
+- **Search Interface**: 
+  - Clean search bar with integrated search button
+  - Retains search query after submission
+  - Welcome message when no search performed
+- **Results Display**:
+  - Elegant card design with decorative quotation mark
+  - Pre-formatted AI response with proper line spacing
+  - "New Search" button for easy navigation back to home
+
+#### Template System
+- **EJS with ejs-mate**: Implemented layout system for consistent page structure
+- **Boilerplate Layout**: Reusable layout template for all pages
+- **Component Views**:
+  - `books/index.ejs`: Main search and results page
+  - `error.ejs`: Error handling page
+- **FontAwesome Integration**: Icon support for enhanced visual elements
+
+#### Error Handling
+- **API Key Validation**: Checks for missing OpenAI API key with user-friendly message
+- **Empty Search Prevention**: Validates search input before API call
+- **API Error Handling**: Graceful degradation when OpenAI API fails
+- **User Feedback**: Clear error messages displayed in elegant alert boxes
+- **Global Error Middleware**: Catches and handles all application errors
+
+#### Configuration & Environment
+- **Environment Variables**: 
+  - dotenv integration for secure API key storage
+  - Configurable PORT (defaults to 3000)
+  - OPENAI_API_KEY for API authentication
+- **Git Integration**: Comprehensive `.gitignore` file to protect sensitive data
+
+#### Development Tools
+- **Package Management**: 
+  - npm scripts for `start` (production) and `dev` (with nodemon)
+  - All dependencies properly versioned in `package.json`
+- **Development Server**: nodemon for auto-reload during development
+
+#### Dependencies
+- **Production**:
+  - express ^4.18.2 - Web framework
+  - ejs ^3.1.9 - Template engine
+  - ejs-mate ^4.0.0 - Layout support
+  - method-override ^3.0.0 - RESTful HTTP verbs
+  - dotenv ^16.3.1 - Environment variable management
+  - openai ^4.20.1 - OpenAI API client
+- **Development**:
+  - nodemon ^3.0.1 - Auto-reload development server
+
+#### Documentation
+- **README.md**: Comprehensive project documentation including:
+  - Feature list and tech stack
+  - Installation instructions
+  - OpenAI API key setup guide
+  - Usage instructions
+  - RESTful routes documentation
+  - Project structure overview
+  - How it works explanation
+- **Code Comments**: Inline documentation in route files and controllers
+
+#### Security
+- **API Key Protection**: `.env` file gitignored to prevent key exposure
+- **Input Validation**: Server-side validation for search queries
+- **Error Stack Hiding**: Production-ready error handling that doesn't expose stack traces to users
+
+### Technical Specifications
+
+#### OpenAI Configuration
+- Model: GPT-3.5-turbo
+- Temperature: 0.7 (balanced creativity)
+- Max Tokens: 300 (optimal for book summaries)
+- System Prompt: Configured as helpful book expert with concise response instructions
+
+#### Server Configuration
+- Port: 3000 (configurable via environment variable)
+- Middleware Stack:
+  - express.urlencoded (form parsing)
+  - express.json (JSON parsing)
+  - method-override (RESTful support)
+  - express.static (static file serving)
+
+#### AI Agent Architecture
+
+**Single Turn Pattern** (Not Agentic Workflow)
+
+```
+User Search → Controller → OpenAI API Call → Response → Display
+                          (single turn, stateless)
+```
+
+### Project Structure
+
+```
+BookApp/
+├── app.js                  # Express server & middleware configuration
+├── package.json            # Dependencies and npm scripts
+├── .env                    # Environment variables (gitignored)
+├── .gitignore             # Git ignore rules
+├── README.md              # Project documentation
+├── CHANGELOG.md           # This file
+├── controllers/
+│   └── bookController.js  # Search logic & OpenAI integration
+├── routes/
+│   └── books.js           # RESTful route definitions
+├── views/
+│   ├── layouts/
+│   │   └── boilerplate.ejs # Main HTML layout
+│   ├── books/
+│   │   └── index.ejs      # Search page & results display
+│   └── error.ejs          # Error page template
+└── public/
+    └── css/
+        └── style.css      # Complete styling (340+ lines)
+```
+
+### Known Limitations
+- Simple request-response AI pattern (not agentic workflow)
+- No database integration (stateless application)
+- No user authentication or session management
+- No book history or favorites feature
+- Relies on external API (OpenAI) for all book information
+- No offline mode or caching
+
+### Future Considerations
+Potential enhancements for future versions may include:
+- Evolution to agentic workflow architecture
+- Database integration for saving search history
+- User accounts and authentication
+- Favorites/bookmarks system
+- Multiple AI model support
+- Book cover image integration
+- Advanced search filters (genre, year, author)
+- Rating and review system
+- Book recommendation engine
+
+---
+
+## Release Notes
+
+### Version 1.0.0 - Initial Release
+
+This is the first production-ready release of BookApp. The application is fully functional and provides a beautiful, elegant interface for searching and discovering books using AI-powered responses. All core features are stable and tested.
+
+**Installation Requirements:**
+- Node.js (v14 or higher recommended)
+- npm or yarn package manager
+- OpenAI API key
+
+**Quick Start:**
+```bash
+npm install
+# Create .env file with OPENAI_API_KEY
+npm start
+# Visit http://localhost:3000
+```
+
+---
+
+*For questions, issues, or contributions, please refer to the README.md file.*

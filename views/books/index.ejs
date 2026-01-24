@@ -7,7 +7,7 @@
     <p class="subtitle">A Literary Collection</p>
 </div>
 
-<div class="search-section">
+<div class="search-section" id="searchSection" style="<%= bookInfo ? 'display: none;' : '' %>">
     <form action="/search" method="POST" class="search-form">
         <div class="search-container">
             <input 
@@ -41,10 +41,139 @@
                 <%= bookInfo %>
             </div>
         </div>
+
+        <!-- Chat Interface -->
+        <div class="chat-section">
+            <div class="chat-header">
+                <h3>Continue the conversation</h3>
+                <p>Ask any follow-up questions about this book</p>
+            </div>
+            
+            <div class="chat-messages" id="chatMessages">
+                <!-- Chat messages will appear here -->
+            </div>
+            
+            <div class="chat-input-container">
+                <form id="chatForm" class="chat-form">
+                    <div class="chat-input-wrapper">
+                        <input 
+                            type="text" 
+                            id="chatInput" 
+                            class="chat-input" 
+                            placeholder="Ask a question..."
+                            autocomplete="off"
+                            required
+                        >
+                        <button type="submit" class="chat-send-button" id="chatSendButton">
+                            <i class="fas fa-paper-plane"></i>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
         <div class="search-again">
             <a href="/" class="btn-search-again">← New Search</a>
         </div>
     </div>
+
+    <script>
+        const chatForm = document.getElementById('chatForm');
+        const chatInput = document.getElementById('chatInput');
+        const chatMessages = document.getElementById('chatMessages');
+        const chatSendButton = document.getElementById('chatSendButton');
+
+        chatForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const message = chatInput.value.trim();
+            if (!message) return;
+
+            // Add user message to chat
+            appendMessage(message, 'user');
+            chatInput.value = '';
+            
+            // Disable input while processing
+            chatInput.disabled = true;
+            chatSendButton.disabled = true;
+            
+            // Add typing indicator
+            const typingId = appendTypingIndicator();
+
+            try {
+                const response = await fetch('/chat', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ message })
+                });
+
+                const data = await response.json();
+                
+                // Remove typing indicator
+                removeTypingIndicator(typingId);
+
+                if (data.success) {
+                    // Add AI response to chat
+                    appendMessage(data.response, 'assistant');
+                } else {
+                    appendMessage(data.error || 'An error occurred. Please try again.', 'error');
+                }
+            } catch (error) {
+                removeTypingIndicator(typingId);
+                appendMessage('Failed to send message. Please try again.', 'error');
+            } finally {
+                // Re-enable input
+                chatInput.disabled = false;
+                chatSendButton.disabled = false;
+                chatInput.focus();
+            }
+        });
+
+        function appendMessage(content, type) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `chat-message chat-message-${type}`;
+            
+            const contentDiv = document.createElement('div');
+            contentDiv.className = 'chat-message-content';
+            contentDiv.textContent = content;
+            
+            messageDiv.appendChild(contentDiv);
+            chatMessages.appendChild(messageDiv);
+            
+            // Scroll to bottom
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+
+        function appendTypingIndicator() {
+            const typingDiv = document.createElement('div');
+            typingDiv.className = 'chat-message chat-message-assistant typing-indicator';
+            typingDiv.id = 'typing-' + Date.now();
+            
+            const contentDiv = document.createElement('div');
+            contentDiv.className = 'chat-message-content';
+            contentDiv.innerHTML = '<span class="typing-dot"></span><span class="typing-dot"></span><span class="typing-dot"></span>';
+            
+            typingDiv.appendChild(contentDiv);
+            chatMessages.appendChild(typingDiv);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+            
+            return typingDiv.id;
+        }
+
+        function removeTypingIndicator(id) {
+            const typingDiv = document.getElementById(id);
+            if (typingDiv) {
+                typingDiv.remove();
+            }
+        }
+
+        // Focus on chat input when page loads with book info
+        if (chatInput) {
+            chatInput.focus();
+        }
+    </script>
 <% } %>
 
 <% if (!bookInfo && !error && searchQuery === '') { %>
