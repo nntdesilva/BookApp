@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-#### Book Name Text Badges - Correct Title Recognition
+#### Book Name Text Badges - Correct Title Recognition using AI workflows
 - **Intelligent Title Identification**: Added two-stage OpenAI API call to identify and use correct book titles
   - First API call identifies the correct, full book title from partial or misspelled user input
   - Second API call retrieves book information using the identified correct title
