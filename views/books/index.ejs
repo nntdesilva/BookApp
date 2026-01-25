@@ -37,7 +37,7 @@
     <div class="results-section">
         <h2>—</h2>
         <div class="book-info-card">
-            <div class="book-content">
+            <div class="book-content" id="bookContent">
                 <%= bookInfo %>
             </div>
         </div>
@@ -82,6 +82,22 @@
         const chatInput = document.getElementById('chatInput');
         const chatMessages = document.getElementById('chatMessages');
         const chatSendButton = document.getElementById('chatSendButton');
+        const bookName = '<%= bookName || "" %>';
+
+        // Function to add badges to book name occurrences
+        function addBookNameBadges(text) {
+            if (!bookName || !text) return text;
+            
+            // Create a case-insensitive regex that matches the book name
+            const regex = new RegExp(`(${bookName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+            return text.replace(regex, '<span class="book-name-badge">$1</span>');
+        }
+
+        // Apply badges to the initial book content
+        const bookContent = document.getElementById('bookContent');
+        if (bookContent) {
+            bookContent.innerHTML = addBookNameBadges(bookContent.textContent);
+        }
 
         chatForm.addEventListener('submit', async (e) => {
             e.preventDefault();
@@ -89,8 +105,8 @@
             const message = chatInput.value.trim();
             if (!message) return;
 
-            // Add user message to chat
-            appendMessage(message, 'user');
+            // Add user message to chat with badges
+            appendMessage(message, 'user', true);
             chatInput.value = '';
             
             // Disable input while processing
@@ -115,8 +131,8 @@
                 removeTypingIndicator(typingId);
 
                 if (data.success) {
-                    // Add AI response to chat
-                    appendMessage(data.response, 'assistant');
+                    // Add AI response to chat with badges
+                    appendMessage(data.response, 'assistant', true);
                 } else {
                     appendMessage(data.error || 'An error occurred. Please try again.', 'error');
                 }
@@ -131,13 +147,18 @@
             }
         });
 
-        function appendMessage(content, type) {
+        function appendMessage(content, type, applyBadges = false) {
             const messageDiv = document.createElement('div');
             messageDiv.className = `chat-message chat-message-${type}`;
             
             const contentDiv = document.createElement('div');
             contentDiv.className = 'chat-message-content';
-            contentDiv.textContent = content;
+            
+            if (applyBadges) {
+                contentDiv.innerHTML = addBookNameBadges(content);
+            } else {
+                contentDiv.textContent = content;
+            }
             
             messageDiv.appendChild(contentDiv);
             chatMessages.appendChild(messageDiv);

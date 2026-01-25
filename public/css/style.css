@@ -177,6 +177,24 @@ body {
     font-weight: 400;
 }
 
+/* Book Name Badge Styles */
+.book-name-badge {
+    background: linear-gradient(to bottom, transparent 60%, rgba(212, 197, 169, 0.25) 60%);
+    color: inherit;
+    padding: 0 3px;
+    font-weight: 500;
+    letter-spacing: 0.02em;
+    font-style: italic;
+    display: inline;
+    border-bottom: 1px solid rgba(212, 197, 169, 0.4);
+    transition: all 0.3s ease;
+}
+
+.book-name-badge:hover {
+    background: linear-gradient(to bottom, transparent 60%, rgba(212, 197, 169, 0.45) 60%);
+    border-bottom-color: rgba(212, 197, 169, 0.7);
+}
+
 .search-again {
     margin-top: 40px;
     text-align: center;

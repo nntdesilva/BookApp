@@ -9,7 +9,7 @@ module.exports.index = (req, res) => {
     // Clear any existing conversation history
     req.session.conversationHistory = null;
     req.session.bookName = null;
-    res.render('books/index', { bookInfo: null, searchQuery: '', error: null });
+    res.render('books/index', { bookInfo: null, searchQuery: '', bookName: null, error: null });
 };
 
 module.exports.search = async (req, res) => {
@@ -20,6 +20,7 @@ module.exports.search = async (req, res) => {
             return res.render('books/index', { 
                 bookInfo: null, 
                 searchQuery: '',
+                bookName: null,
                 error: 'Please enter a book name' 
             });
         }
@@ -29,6 +30,7 @@ module.exports.search = async (req, res) => {
             return res.render('books/index', { 
                 bookInfo: null, 
                 searchQuery: bookName,
+                bookName: null,
                 error: 'OpenAI API key is not configured. Please add it to your .env file.' 
             });
         }
@@ -72,6 +74,7 @@ module.exports.search = async (req, res) => {
         res.render('books/index', { 
             bookInfo, 
             searchQuery: bookName,
+            bookName: bookName,
             error: null 
         });
 
@@ -80,6 +83,7 @@ module.exports.search = async (req, res) => {
         res.render('books/index', { 
             bookInfo: null, 
             searchQuery: req.body.bookName || '',
+            bookName: null,
             error: 'An error occurred while fetching book information. Please try again.' 
         });
     }
@@ -133,7 +137,8 @@ module.exports.chat = async (req, res) => {
 
         res.json({ 
             success: true,
-            response: aiResponse 
+            response: aiResponse,
+            bookName: req.session.bookName 
         });
 
     } catch (error) {
