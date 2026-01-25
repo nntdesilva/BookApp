@@ -5,6 +5,41 @@ All notable changes to the BookApp project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.1] - 2026-01-25
+
+### Fixed
+
+#### Book Name Text Badges - Correct Title Recognition
+- **Intelligent Title Identification**: Added two-stage OpenAI API call to identify and use correct book titles
+  - First API call identifies the correct, full book title from partial or misspelled user input
+  - Second API call retrieves book information using the identified correct title
+- **Badge Accuracy**: Badges now highlight the actual book title (e.g., "The 48 Laws of Power") instead of user's search query (e.g., "48 laws of power")
+- **Misspelling Handling**: System automatically corrects misspelled book names and badges the correct title
+- **Partial Query Support**: Works with incomplete book titles - identifies and displays the full correct name
+- **Implementation Details**:
+  - New title identification prompt with low temperature (0.3) for consistent results
+  - Correct title stored in session for consistent badging across chat responses
+  - Search query preserved separately for form display purposes
+
+#### UI Refinements
+- **Badge Styling Improvement**: Updated book name badges to use more subtle, theme-consistent colors
+  - Changed from bright yellow (`#f4d03f`) to soft beige (`#e8dfc8`)
+  - Updated border from gold (`#d4af37`) to muted tan (`#d4c5a9`)
+  - Hover state now uses `#d4c5a9` for a gentle interaction effect
+  - Colors harmonize with the cream/tan literary theme throughout the app
+
+#### Code Quality
+- **Linter Error Resolution**: Fixed CSS linter warnings in `index.ejs`
+  - Replaced inline style attribute with conditional CSS class approach
+  - Added `.hidden` utility class to CSS for better maintainability
+  - Improved separation of concerns between markup and styling
+
+### Technical Improvements
+- **API Efficiency**: Title identification uses max_tokens: 50 for faster responses
+- **Session Management**: Enhanced to store correct book title rather than raw user input
+- **Conversation Context**: Chat history now references the correct book title for better AI responses
+- **CSS Architecture**: Added reusable utility class for hiding elements
+
 ## [0.3.0] - 2026-01-25
 
 ### Major Feature: Book Name Text Badges

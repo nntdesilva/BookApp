@@ -7,7 +7,7 @@
     <p class="subtitle">A Literary Collection</p>
 </div>
 
-<div class="search-section" id="searchSection" style="<%= bookInfo ? 'display: none;' : '' %>">
+<div class="search-section<%= bookInfo ? ' hidden' : '' %>" id="searchSection">
     <form action="/search" method="POST" class="search-form">
         <div class="search-container">
             <input 
@@ -88,9 +88,17 @@
         function addBookNameBadges(text) {
             if (!bookName || !text) return text;
             
+            // Escape special regex characters in the book name
+            const escapedBookName = bookName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            
             // Create a case-insensitive regex that matches the book name
-            const regex = new RegExp(`(${bookName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
-            return text.replace(regex, '<span class="book-name-badge">$1</span>');
+            // Match with various quote types including HTML entities
+            const regex = new RegExp(`(["'"\\'&#34;&#39;]?)(${escapedBookName})(["'"\\'&#34;&#39;]?)`, 'gi');
+            
+            return text.replace(regex, (match, before, title, after) => {
+                // Only add badge to the title itself, not the surrounding punctuation
+                return `${before}<span class="book-name-badge">${title}</span>${after}`;
+            });
         }
 
         // Apply badges to the initial book content

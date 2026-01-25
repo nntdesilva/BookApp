@@ -35,17 +35,51 @@ module.exports.search = async (req, res) => {
             });
         }
 
-        // Create a chat completion request to get book information
+        // First, get the correct book title
+        const titleCompletion = await openai.chat.completions.create({
+            model: "gpt-3.5-turbo",
+            messages: [
+                {
+                    role: "system",
+                    content: "You are a book title identifier. Return ONLY the book title, nothing else. No quotes, no author name, no explanations. Just the exact title. Examples: 'Harry Potter and the Philosopher's Stone' or 'The 48 Laws of Power' or '1984'"
+                },
+                {
+                    role: "user",
+                    content: `${bookName}`
+                }
+            ],
+            temperature: 0.3,
+            max_tokens: 50
+        });
+
+        let correctBookTitle = titleCompletion.choices[0].message.content.trim();
+        
+        // Extract title from quotes if present
+        const quotedMatch = correctBookTitle.match(/["'"]([^"'"]+)["'"]/);
+        if (quotedMatch) {
+            correctBookTitle = quotedMatch[1];
+        }
+        
+        // Remove author name if present (e.g., "Title by Author")
+        const byAuthorMatch = correctBookTitle.match(/^(.+?)\s+by\s+.+$/i);
+        if (byAuthorMatch) {
+            correctBookTitle = byAuthorMatch[1].trim();
+        }
+        
+        // Remove any leading/trailing quotes
+        correctBookTitle = correctBookTitle.replace(/^["'"]|["'"]$/g, '');
+
+        // Now get detailed information about the book using the correct title
         const completion = await openai.chat.completions.create({
             model: "gpt-3.5-turbo",
             messages: [
                 {
                     role: "system",
-                    content: "You are a helpful book expert. Provide detailed information about books including author, publication year, genre, and a brief summary. Keep responses concise but informative (around 150-200 words)."
+                    content: `You are a helpful book expert. Provide detailed information about books including author, publication year, genre, and a brief summary. Keep responses concise but informative (around 150-200 words). IMPORTANT: When referring to the book title, always use this exact format: "${correctBookTitle}"`
                 },
                 {
                     role: "user",
-                    content: `Tell me about the book "${bookName}". Include the author, publication year, genre, and a brief summary.`
+                    content: `Tell me about the book "${correctBookTitle}". Include the author, publication year, genre, and a brief summary.`
                 }
             ],
             temperature: 0.7,
@@ -58,23 +92,23 @@ module.exports.search = async (req, res) => {
         req.session.conversationHistory = [
             {
                 role: "system",
-                content: "You are a helpful book expert. The user has just searched for information about a book. Provide detailed, conversational answers to their follow-up questions about this book or related topics. Keep responses concise but informative."
+                content: `You are a helpful book expert. The user has just searched for information about a book. Provide detailed, conversational answers to their follow-up questions about this book or related topics. Keep responses concise but informative. IMPORTANT: When referring to the book title, always use this exact format: "${correctBookTitle}"`
             },
             {
                 role: "user",
-                content: `Tell me about the book "${bookName}". Include the author, publication year, genre, and a brief summary.`
+                content: `Tell me about the book "${correctBookTitle}". Include the author, publication year, genre, and a brief summary.`
             },
             {
                 role: "assistant",
                 content: bookInfo
             }
         ];
-        req.session.bookName = bookName;
+        req.session.bookName = correctBookTitle;
 
         res.render('books/index', { 
             bookInfo, 
             searchQuery: bookName,
-            bookName: bookName,
+            bookName: correctBookTitle,
             error: null 
         });
 
