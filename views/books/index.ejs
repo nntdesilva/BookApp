@@ -84,20 +84,27 @@
         const chatSendButton = document.getElementById('chatSendButton');
         const bookName = '<%= bookName || "" %>';
 
-        // Function to add badges to book name occurrences
+        /**
+         * Function to convert GPT-marked book titles to badges
+         * This function ONLY processes text marked with [[double brackets]]
+         * It does NOT determine what should be badged - that's the AI's responsibility
+         * 
+         * Rules:
+         * - Only converts [[BookTitle]] to badge spans
+         * - Preserves all other text as-is
+         * - Does NOT add logic for partial titles or context detection
+         *   (that must be handled by the AI prompt)
+         */
         function addBookNameBadges(text) {
-            if (!bookName || !text) return text;
+            if (!text) return text;
             
-            // Escape special regex characters in the book name
-            const escapedBookName = bookName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            // Replace [[BookTitle]] markers with badge spans
+            // This regex matches double brackets with any content inside
+            const regex = /\[\[([^\]]+)\]\]/g;
             
-            // Create a case-insensitive regex that matches the book name
-            // Match with various quote types including HTML entities
-            const regex = new RegExp(`(["'"\\'&#34;&#39;]?)(${escapedBookName})(["'"\\'&#34;&#39;]?)`, 'gi');
-            
-            return text.replace(regex, (match, before, title, after) => {
-                // Only add badge to the title itself, not the surrounding punctuation
-                return `${before}<span class="book-name-badge">${title}</span>${after}`;
+            return text.replace(regex, (match, title) => {
+                // Convert the marked title to a badge
+                return `<span class="book-name-badge">${title}</span>`;
             });
         }
 

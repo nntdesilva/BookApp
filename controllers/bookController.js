@@ -41,7 +41,7 @@ module.exports.search = async (req, res) => {
             messages: [
                 {
                     role: "system",
-                    content: "You are a book title identifier. Return ONLY the book title, nothing else. No quotes, no author name, no explanations. Just the exact title. Examples: 'Harry Potter and the Philosopher's Stone' or 'The 48 Laws of Power' or '1984'"
+                    content: "You are a book title identifier. Return ONLY the COMPLETE book title, nothing else. No quotes, no author name, no explanations. Just the exact, full book title.\n\nIMPORTANT: If the input is a series name or character name (e.g., 'Harry Potter', 'Lord of the Rings'), return the FIRST book's complete title from that series.\n\nExamples:\nInput: 'Harry Potter' → Output: Harry Potter and the Philosopher's Stone\nInput: 'Lord of the Rings' → Output: The Fellowship of the Ring\nInput: '48 laws of power' → Output: The 48 Laws of Power\nInput: '1984' → Output: 1984"
                 },
                 {
                     role: "user",
@@ -73,7 +73,44 @@ module.exports.search = async (req, res) => {
         const messages = [
             {
                 role: "system",
-                content: `You are a helpful book expert. The user has just searched for information about a book. Provide detailed, conversational answers to their follow-up questions about this book or related topics. Keep responses concise but informative. IMPORTANT: When referring to the book title, always use this exact format: "${correctBookTitle}"`
+                content: `You are a helpful book expert. CRITICAL: You MUST wrap every book title you mention in double brackets [[like this]].
+
+MANDATORY WRAPPING RULES:
+1. ALWAYS wrap COMPLETE book titles with [[double brackets]]
+   - Full title including "The" if part of title: [[The 48 Laws of Power]] NOT [[48 Laws of Power]]
+   - Full title for series books: [[Harry Potter and the Philosopher's Stone]] NOT [[Harry Potter]]
+   - Wrap EVERY time you mention a book title, even multiple times in the response
+
+2. DO NOT wrap partial or incomplete titles
+   - Wrong: [[Harry Potter]] (missing full title)
+   - Correct: [[Harry Potter and the Philosopher's Stone]]
+   - Wrong: [[48 Laws of Power]] (missing "The")
+   - Correct: [[The 48 Laws of Power]]
+
+3. DO NOT wrap words when used in sentence context (NOT referring to the book)
+   - If the word is a concept or used as adjective/noun in a sentence, DO NOT wrap it
+   - Example: "[[Mastery]] focuses on achieving excellence in a field" ✓ (only book title is wrapped)
+   - Wrong: "[[Mastery]] focuses on achieving [[mastery]] in a field" ✗ (don't wrap the word "mastery")
+   - Example: "[[The 48 Laws of Power]] explores the dynamics of power" ✓ (only book title is wrapped)
+   - Wrong: "explores the dynamics of [[power]]" ✗ (don't wrap concept words)
+
+4. DO NOT wrap series names - only individual book titles
+   - Wrong: "The [[Harry Potter series]] includes..." 
+   - Correct: "The Harry Potter series includes [[Harry Potter and the Philosopher's Stone]], [[Harry Potter and the Chamber of Secrets]]..."
+   - Wrong: "The [[Lord of the Rings trilogy]]..."
+   - Correct: "The Lord of the Rings trilogy includes [[The Fellowship of the Ring]], [[The Two Towers]], [[The Return of the King]]"
+
+5. DO NOT wrap author names, genres, publishers, or other text
+   - Never wrap: Robert Greene, J.K. Rowling, dystopian fiction, Penguin Books, etc.
+
+EXAMPLE RESPONSES:
+✓ "[[The 48 Laws of Power]] is a non-fiction book by Robert Greene that explores strategies of power in human relationships."
+✓ "[[Mastery]] focuses on achieving excellence through practice, mentorship, and self-discovery."
+✓ "The Harry Potter series includes [[Harry Potter and the Philosopher's Stone]], [[Harry Potter and the Chamber of Secrets]], and five other books."
+✗ "The 48 Laws of Power is written by..." (missing brackets on title)
+✗ "[[Mastery]] focuses on achieving [[mastery]]..." (don't wrap the word in context)
+✗ "The [[Harry Potter series]] includes..." (don't bracket series names)
+✗ "[[Harry Potter]] is the first book..." (use complete title with full name)`
             },
             {
                 role: "user",
