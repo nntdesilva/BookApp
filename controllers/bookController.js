@@ -69,27 +69,8 @@ module.exports.search = async (req, res) => {
         // Remove any leading/trailing quotes
         correctBookTitle = correctBookTitle.replace(/^["'"]|["'"]$/g, '');
 
-        // Now get detailed information about the book using the correct title
-        const completion = await openai.chat.completions.create({
-            model: "gpt-3.5-turbo",
-            messages: [
-                {
-                    role: "system",
-                    content: `You are a helpful book expert. Provide detailed information about books including author, publication year, genre, and a brief summary. Keep responses concise but informative (around 150-200 words). IMPORTANT: When referring to the book title, always use this exact format: "${correctBookTitle}"`
-                },
-                {
-                    role: "user",
-                    content: `Tell me about the book "${correctBookTitle}". Include the author, publication year, genre, and a brief summary.`
-                }
-            ],
-            temperature: 0.7,
-            max_tokens: 300
-        });
-
-        const bookInfo = completion.choices[0].message.content;
-
         // Initialize conversation history with the book context
-        req.session.conversationHistory = [
+        const messages = [
             {
                 role: "system",
                 content: `You are a helpful book expert. The user has just searched for information about a book. Provide detailed, conversational answers to their follow-up questions about this book or related topics. Keep responses concise but informative. IMPORTANT: When referring to the book title, always use this exact format: "${correctBookTitle}"`
@@ -97,12 +78,27 @@ module.exports.search = async (req, res) => {
             {
                 role: "user",
                 content: `Tell me about the book "${correctBookTitle}". Include the author, publication year, genre, and a brief summary.`
-            },
-            {
-                role: "assistant",
-                content: bookInfo
             }
         ];
+
+        // Get detailed information about the book using the correct title
+        const completion = await openai.chat.completions.create({
+            model: "gpt-3.5-turbo",
+            messages: messages,
+            temperature: 0.7,
+            max_tokens: 300
+        });
+
+        const bookInfo = completion.choices[0].message.content;
+
+        // Add assistant response to conversation history
+        messages.push({
+            role: "assistant",
+            content: bookInfo
+        });
+
+        // Store the complete conversation history in session
+        req.session.conversationHistory = messages;
         req.session.bookName = correctBookTitle;
 
         res.render('books/index', { 
