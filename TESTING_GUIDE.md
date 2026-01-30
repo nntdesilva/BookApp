@@ -35,150 +35,149 @@ npm install
 ## Running Tests
 
 ### Run all tests
+
 ```bash
 npm test
 ```
 
 ### Run tests in watch mode (for development)
+
 ```bash
 npm run test:watch
 ```
 
 ### Run tests with coverage report
+
 ```bash
 npm run test:coverage
 ```
 
 ### Run specific test file
+
 ```bash
-npm test badgeDetector.test.js
-npm test bookController.test.js
+npm test coloredBadgeDetector.test.js
 ```
 
 ## Test Structure
 
-### 1. Badge Detector Tests (`__tests__/badgeDetector.test.js`)
+### Colored Badge Detector Tests (`tests/unit/coloredBadgeDetector.test.js`)
 
-Tests for the utility function that converts `[[BookTitle]]` markers to badge spans.
+Tests for the AI-powered colored badge classification system.
 
 **Test Categories:**
-- Basic functionality (converting marked titles to badges)
-- Full vs Partial titles validation
-- Context-sensitive detection (words vs book titles)
-- Edge cases (special characters, multiple books, etc.)
-- Series vs individual books
+
+- Book/Series Analysis (analyzeBookOrSeries)
+- Book Title Validation (isActualBookTitle)
+- Badge Classification (classifyBookBadges)
+- Badge Application and HTML Generation
+- Title Extraction
+- Title Normalization
+- Integration Scenarios
 
 **Key Test Cases:**
 
-#### Full vs Partial Titles
-```javascript
-// Should detect partial title as incorrect
-const text = '[[Harry Potter]] is a series';
-validateBookTitleMarkup(text, ['Harry Potter and the Philosopher\'s Stone']);
-// Returns: { isValid: false, issues: [{ type: 'partial_title', ... }] }
-```
-
-#### Context-Sensitive Words
-```javascript
-// Should detect "mastery" used in context as incorrect
-const text = '[[Mastery]] focuses on achieving [[mastery]]';
-validateBookTitleMarkup(text, ['Mastery']);
-// Returns: { isValid: false, issues: [{ type: 'word_in_context', ... }] }
-```
-
-### 2. Controller Tests (`__tests__/bookController.test.js`)
-
-Tests for AI prompt instructions and response validation.
-
-**Test Categories:**
-- AI System Prompt Requirements
-- Common scenarios (partial titles, context words)
-- Multiple books scenarios
-- Context-sensitive badging
-- Series vs individual books
-- Real-world problematic responses
-
-**Key Test Cases:**
-
-#### Screenshot Issue - "mastery" in sentence
-```javascript
-// From user's screenshot - this should fail validation
-const problematic = 'achieving [[mastery]] in a particular field';
-// "mastery" here is used as a word, not the book title
-
-// Correct version
-const correct = 'achieving excellence in a particular field. [[Mastery]] is highly recommended.';
-```
-
-#### Partial Title Detection
-```javascript
-// Should fail - partial title
-'[[48 Laws of Power]]' // Missing "The"
-
-// Should pass - full title
-'[[The 48 Laws of Power]]'
-```
-
-## Utility Functions
-
-### `addBookNameBadges(text)`
-Converts `[[BookTitle]]` markers to HTML badge spans.
+#### Badge Classification
 
 ```javascript
-const result = addBookNameBadges('Read [[1984]] by Orwell');
-// Returns: 'Read <span class="book-name-badge">1984</span> by Orwell'
-```
-
-### `validateBookTitleMarkup(text, expectedFullTitles)`
-Validates if AI response properly marks book titles.
-
-```javascript
-const validation = validateBookTitleMarkup(
-    '[[Harry Potter]] is great',
-    ['Harry Potter and the Philosopher\'s Stone']
+// CREAM badge for exact searched book
+// GREEN badge for books in same series
+// ORANGE badge for unrelated books
+const classification = await classifyBookBadges(
+  aiResponse,
+  searchedQuery,
+  searchedBook,
+  seriesName,
 );
+```
+
+#### Series Analysis
+
+```javascript
+// Analyze if input is series name or book title
+const result = await analyzeBookOrSeries("Harry Potter");
+// Returns: { isSeries: true, seriesName: "Harry Potter", allBooksInSeries: [...] }
+```
+
+## Key Functions
+
+### `analyzeBookOrSeries(input)`
+
+Analyze if input is a series name or book title, and get series information.
+
+```javascript
+const result = await analyzeBookOrSeries("Harry Potter");
 // Returns: {
-//   isValid: false,
-//   markedTitles: ['Harry Potter'],
-//   issues: [{ type: 'partial_title', ... }]
+//   isSeries: true,
+//   seriesName: "Harry Potter",
+//   allBooksInSeries: ["Harry Potter and the Philosopher's Stone", ...]
 // }
 ```
 
+### `classifyBookBadges(aiResponse, searchedQuery, searchedBook, seriesName)`
+
+Classify books into badge color categories using AI.
+
+```javascript
+const classification = await classifyBookBadges(
+  aiResponse,
+  "harry potter",
+  "Harry Potter and the Philosopher's Stone",
+  "Harry Potter",
+);
+// Returns: {
+//   creamBadgeBooks: [...],
+//   greenBadgeBooks: [...],
+//   orangeBadgeBooks: [...]
+// }
+```
+
+### `applyColoredBadges(aiResponse, classification)`
+
+Apply colored badge HTML to the AI response.
+
+```javascript
+const html = applyColoredBadges(aiResponse, classification);
+// Returns HTML with colored badge spans
+```
+
 ### `extractMarkedTitles(text)`
+
 Extracts all marked titles from text.
 
 ```javascript
-const titles = extractMarkedTitles('Read [[1984]] and [[Animal Farm]]');
+const titles = extractMarkedTitles("Read [[1984]] and [[Animal Farm]]");
 // Returns: ['1984', 'Animal Farm']
 ```
 
 ## Expected Test Results
 
-All tests should pass after the improvements made to:
+All tests should pass with the current implementation:
 
 1. **AI System Prompt** (`controllers/bookController.js`)
    - Enhanced instructions to only wrap complete titles
    - Explicit rules against wrapping words in sentence context
    - Clear examples of correct vs incorrect markup
 
-2. **Frontend Function** (`views/books/index.ejs`)
-   - Improved documentation about function responsibility
-   - Clear separation: function processes brackets, AI decides what to bracket
+2. **Colored Badge Detection** (`utils/coloredBadgeDetector.js`)
+   - AI-powered classification of books into cream/green/orange categories
+   - Series and book analysis
+   - Fallback handling for quoted titles
 
-3. **Utility Module** (`utils/badgeDetector.js`)
-   - Reusable functions for testing and validation
-   - Context-aware validation logic
+3. **Frontend Function** (`views/books/index.ejs`)
+   - Client-side badge application
+   - Clear separation: function processes brackets, AI decides what to bracket
 
 ## Test Coverage
 
-The test suite includes **40+ test cases** covering:
+The test suite includes comprehensive test cases covering:
 
-- ✅ Full title detection (not partial)
-- ✅ Context-sensitive word detection
-- ✅ Series name vs individual book titles
+- ✅ Book/Series Analysis (AI-powered)
+- ✅ Badge Classification (cream/green/orange)
+- ✅ Badge Application and HTML Generation
+- ✅ Title Extraction and Normalization
 - ✅ Multiple books in one response
 - ✅ Special characters and edge cases
-- ✅ Real-world problematic scenarios
+- ✅ Real-world integration scenarios
 
 ## Continuous Integration
 
@@ -195,18 +194,22 @@ To integrate these tests into CI/CD:
 ## Troubleshooting
 
 ### Tests fail due to npm permissions
+
 ```bash
 sudo chown -R $(whoami) "/Users/navodanilakshi/.npm"
 npm install
 ```
 
 ### Jest not found
+
 ```bash
 npm install --save-dev jest @types/jest
 ```
 
 ### Tests timeout
+
 Increase timeout in package.json:
+
 ```json
 "jest": {
   "testTimeout": 10000
@@ -227,7 +230,7 @@ When adding new test cases:
 ## References
 
 - Jest Documentation: https://jestjs.io/
-- Test file locations:
-  - `__tests__/badgeDetector.test.js`
-  - `__tests__/bookController.test.js`
-- Utility module: `utils/badgeDetector.js`
+- Test file: `tests/unit/coloredBadgeDetector.test.js`
+- Main modules:
+  - `utils/coloredBadgeDetector.js` - AI-powered badge classification
+  - `controllers/bookController.js` - Route handlers with AI prompt engineering

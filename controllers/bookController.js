@@ -2,17 +2,14 @@ const OpenAI = require("openai");
 const {
   classifyBookBadges,
   applyColoredBadges,
-  getSeriesInfo,
-  isSeriesQuery,
+  analyzeBookOrSeries,
 } = require("../utils/coloredBadgeDetector");
 
-// Initialize OpenAI client
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
 module.exports.index = (req, res) => {
-  // Clear any existing conversation history
   req.session.conversationHistory = null;
   req.session.bookName = null;
   req.session.seriesName = null;
@@ -38,7 +35,6 @@ module.exports.search = async (req, res) => {
       });
     }
 
-    // Check if API key is configured
     if (!process.env.OPENAI_API_KEY) {
       return res.render("books/index", {
         bookInfo: null,
@@ -49,14 +45,13 @@ module.exports.search = async (req, res) => {
       });
     }
 
-    // First, get the correct book title
     const titleCompletion = await openai.chat.completions.create({
       model: "gpt-3.5-turbo",
       messages: [
         {
           role: "system",
           content:
-            "You are a book title identifier. Return ONLY the COMPLETE book title, nothing else. No quotes, no author name, no explanations. Just the exact, full book title.\n\nIMPORTANT: If the input is a series name or character name (e.g., 'Harry Potter', 'Lord of the Rings'), return the FIRST book's complete title from that series.\n\nExamples:\nInput: 'Harry Potter' → Output: Harry Potter and the Philosopher's Stone\nInput: 'Lord of the Rings' → Output: The Fellowship of the Ring\nInput: '48 laws of power' → Output: The 48 Laws of Power\nInput: '1984' → Output: 1984",
+            "You are a book title corrector. Your job is to ONLY fix spelling and capitalization errors while preserving the user's original intent.\n\nCRITICAL RULES:\n1. If the input is a series name (e.g., 'harry potter', 'lord of rings'), return the SERIES NAME with correct spelling/caps\n2. If the input is a book title (e.g., 'hary poter and the filosofers stone'), return the BOOK TITLE with correct spelling/caps\n3. DO NOT expand series names into book titles\n4. DO NOT shorten book titles into series names\n5. Preserve whether it's a series or a specific book\n\nExamples:\nInput: 'harry potter' → Output: Harry Potter (series name stays series name)\nInput: 'hary poter' → Output: Harry Potter (series name with spelling fixed)\nInput: 'harry potter and the filosofers stone' → Output: Harry Potter and the Philosopher's Stone (book title stays book title)\nInput: '48 lows of power' → Output: The 48 Laws of Power (add articles if needed)\nInput: 'lord of rings' → Output: The Lord of the Rings (series name with corrections)\nInput: 'the fellowship of ring' → Output: The Fellowship of the Ring (book title with corrections)\nInput: '1984' → Output: 1984 (already correct)\n\nReturn ONLY the corrected title, nothing else. No quotes, no explanations.",
         },
         {
           role: "user",
@@ -69,22 +64,26 @@ module.exports.search = async (req, res) => {
 
     let correctBookTitle = titleCompletion.choices[0].message.content.trim();
 
-    // Extract title from quotes if present
     const quotedMatch = correctBookTitle.match(/["'"]([^"'"]+)["'"]/);
     if (quotedMatch) {
       correctBookTitle = quotedMatch[1];
     }
 
-    // Remove author name if present (e.g., "Title by Author")
     const byAuthorMatch = correctBookTitle.match(/^(.+?)\s+by\s+.+$/i);
     if (byAuthorMatch) {
       correctBookTitle = byAuthorMatch[1].trim();
     }
 
-    // Remove any leading/trailing quotes
     correctBookTitle = correctBookTitle.replace(/^["'"]|["'"]$/g, "");
 
-    // Initialize conversation history with the book context
+    const seriesAnalysis = await analyzeBookOrSeries(correctBookTitle);
+    const seriesName = seriesAnalysis.seriesName;
+    const searchedBook = seriesAnalysis.isSeries ? null : correctBookTitle;
+
+    const initialPrompt = seriesAnalysis.isSeries
+      ? `Tell me about the "${correctBookTitle}" series. Include the author, publication years, genre, a brief overview of the series, and list the main books in order with [[double brackets]] around each individual book title. Provide this as an informative paragraph similar to what you'd find on Wikipedia.`
+      : `Tell me about the book "${correctBookTitle}". Include the author, publication year, genre, and a brief summary.`;
+
     const messages = [
       {
         role: "system",
@@ -122,22 +121,30 @@ MANDATORY WRAPPING RULES:
 5. DO NOT wrap author names, genres, publishers, or other text
    - Never wrap: Robert Greene, J.K. Rowling, dystopian fiction, Penguin Books, etc.
 
+6. PROVIDE DIRECT INFORMATION - Do not ask clarifying questions
+   - When asked about a series, provide comprehensive information about the series
+   - When asked about a book, provide comprehensive information about the book
+   - Give a detailed paragraph similar to what you'd find on Wikipedia or Google
+   - Do NOT ask questions back like "Are you referring to..." or "Just to clarify..."
+   - Assume the user knows what they're asking for and provide the information directly
+
 EXAMPLE RESPONSES:
 ✓ "[[The 48 Laws of Power]] is a non-fiction book by Robert Greene that explores strategies of power in human relationships."
 ✓ "[[Mastery]] focuses on achieving excellence through practice, mentorship, and self-discovery."
 ✓ "The Harry Potter series includes [[Harry Potter and the Philosopher's Stone]], [[Harry Potter and the Chamber of Secrets]], and five other books."
+✓ "Harry Potter is a seven-book fantasy series by J.K. Rowling following wizard Harry Potter and his friends at Hogwarts School."
 ✗ "The 48 Laws of Power is written by..." (missing brackets on title)
 ✗ "[[Mastery]] focuses on achieving [[mastery]]..." (don't wrap the word in context)
 ✗ "The [[Harry Potter series]] includes..." (don't bracket series names)
-✗ "[[Harry Potter]] is the first book..." (use complete title with full name)`,
+✗ "[[Harry Potter]] is the first book..." (use complete title with full name)
+✗ "Just to clarify, are you referring to..." (don't ask clarifying questions)`,
       },
       {
         role: "user",
-        content: `Tell me about the book "${correctBookTitle}". Include the author, publication year, genre, and a brief summary.`,
+        content: initialPrompt,
       },
     ];
 
-    // Get detailed information about the book using the correct title
     const completion = await openai.chat.completions.create({
       model: "gpt-3.5-turbo",
       messages: messages,
@@ -147,46 +154,27 @@ EXAMPLE RESPONSES:
 
     let bookInfo = completion.choices[0].message.content;
 
-    // Check if the user searched for a series name
-    const seriesQueryCheck = isSeriesQuery(bookName);
-
-    // Get series information for the searched book
-    const seriesInfo = getSeriesInfo(correctBookTitle);
-    const seriesName = seriesQueryCheck.isSeries
-      ? seriesQueryCheck.seriesName
-      : seriesInfo.isPartOfSeries
-        ? seriesInfo.seriesName
-        : null;
-
-    // Determine the searched book
-    // If user searched for a series name, searchedBook should be null
-    // If user searched for a specific book, searchedBook should be that book
-    const searchedBook = seriesQueryCheck.isSeries ? null : correctBookTitle;
-
-    // Apply colored badges to the book info
-    const classification = classifyBookBadges(
+    const classification = await classifyBookBadges(
       bookInfo,
-      bookName,
+      correctBookTitle,
       searchedBook,
       seriesName,
     );
     bookInfo = applyColoredBadges(bookInfo, classification);
 
-    // Add assistant response to conversation history (store original with [[]] for future classification)
     messages.push({
       role: "assistant",
       content: completion.choices[0].message.content,
     });
 
-    // Store the complete conversation history in session
     req.session.conversationHistory = messages;
-    req.session.searchQuery = bookName; // Store the ORIGINAL search query
-    req.session.bookName = searchedBook; // Store the actual searched book (null for series searches)
+    req.session.searchQuery = correctBookTitle;
+    req.session.bookName = searchedBook;
     req.session.seriesName = seriesName;
 
     res.render("books/index", {
       bookInfo,
-      searchQuery: bookName,
+      searchQuery: correctBookTitle,
       bookName: correctBookTitle,
       error: null,
     });
@@ -212,29 +200,25 @@ module.exports.chat = async (req, res) => {
       });
     }
 
-    // Check if conversation history exists
     if (!req.session.conversationHistory) {
       return res.status(400).json({
         error: "No active conversation. Please search for a book first.",
       });
     }
 
-    // Check if API key is configured
     if (!process.env.OPENAI_API_KEY) {
       return res.status(500).json({
         error: "OpenAI API key is not configured.",
       });
     }
 
-    // Add user message to conversation history
     req.session.conversationHistory.push({
       role: "user",
       content: message,
     });
 
-    // Create messages array with wrapping reminder for this request
     const messagesWithReminder = [
-      ...req.session.conversationHistory.slice(0, -1), // All messages except the last user message
+      ...req.session.conversationHistory.slice(0, -1),
       {
         role: "user",
         content: `REMINDER: You MUST wrap ALL book titles in [[double brackets]]. Examples: [[War and Peace]], [[Anna Karenina]], [[The Fellowship of the Ring]].
@@ -243,7 +227,6 @@ User question: ${message}`,
       },
     ];
 
-    // Create a chat completion request with reminder
     const completion = await openai.chat.completions.create({
       model: "gpt-3.5-turbo",
       messages: messagesWithReminder,
@@ -253,16 +236,14 @@ User question: ${message}`,
 
     let aiResponse = completion.choices[0].message.content;
 
-    // Apply colored badges to the AI response
-    const classification = classifyBookBadges(
+    const classification = await classifyBookBadges(
       aiResponse,
-      req.session.searchQuery, // Use the ORIGINAL search query, not the book name
+      req.session.searchQuery,
       req.session.bookName,
       req.session.seriesName,
     );
     const coloredResponse = applyColoredBadges(aiResponse, classification);
 
-    // Add assistant response to conversation history (store original with [[]] for future classification)
     req.session.conversationHistory.push({
       role: "assistant",
       content: aiResponse,

@@ -1,14 +1,10 @@
 #!/bin/bash
 
-# Script to setup and run tests for BookApp
-# This script fixes npm permissions and installs test dependencies
-
 echo "======================================"
 echo "BookApp Test Setup Script"
 echo "======================================"
 echo ""
 
-# Check if npm is installed
 if ! command -v npm &> /dev/null; then
     echo "❌ Error: npm is not installed"
     echo "Please install Node.js and npm first"
@@ -18,7 +14,6 @@ fi
 echo "✓ npm is installed"
 echo ""
 
-# Fix npm permissions if needed
 echo "Checking npm permissions..."
 if [ ! -w "$HOME/.npm" ]; then
     echo "⚠️  npm permission issue detected"

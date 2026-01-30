@@ -38,8 +38,8 @@
       "/node_modules/"
     ],
     "testMatch": [
-      "**/__tests__/**/*.js",
-      "**/?(*.)+(spec|test).js"
+      "**/tests/**/*.test.js",
+      "**/tests/**/*.spec.js"
     ]
   }
 }

@@ -1,8 +1,8 @@
 /**
- * Colored Badge Detection System
+ * Colored Badge Detection System - AI-Powered
  *
  * This module provides functionality to classify book titles based on their
- * relationship to the searched book/series and apply colored badges.
+ * relationship to the searched book/series and apply colored badges using AI.
  *
  * BADGE COLORS:
  * - CREAM: The exact book the user searched for
@@ -10,233 +10,167 @@
  * - ORANGE: Books unrelated to the series (different series or standalone)
  */
 
-/**
- * Known book series data
- * This would ideally come from a database or API in production
- */
-const BOOK_SERIES = {
-  "Harry Potter": [
-    "Harry Potter and the Philosopher's Stone",
-    "Harry Potter and the Chamber of Secrets",
-    "Harry Potter and the Prisoner of Azkaban",
-    "Harry Potter and the Goblet of Fire",
-    "Harry Potter and the Order of the Phoenix",
-    "Harry Potter and the Half-Blood Prince",
-    "Harry Potter and the Deathly Hallows",
-  ],
-  "The Lord of the Rings": [
-    "The Fellowship of the Ring",
-    "The Two Towers",
-    "The Return of the King",
-  ],
-  "The Hunger Games": ["The Hunger Games", "Catching Fire", "Mockingjay"],
-  "The Chronicles of Narnia": [
-    "The Lion, the Witch and the Wardrobe",
-    "Prince Caspian",
-    "The Voyage of the Dawn Treader",
-    "The Silver Chair",
-    "The Horse and His Boy",
-    "The Magician's Nephew",
-    "The Last Battle",
-  ],
-};
+const OpenAI = require("openai");
+
+let openai = null;
+
+function getOpenAIClient() {
+  if (!openai && process.env.OPENAI_API_KEY) {
+    openai = new OpenAI({
+      apiKey: process.env.OPENAI_API_KEY,
+    });
+  }
+  return openai;
+}
 
 /**
- * Get series information for a given book title
- * @param {string} bookTitle - The book title to look up
- * @returns {Object} Series information including series name and all books in series
+ * Analyze if input is a series name or book title, and get series information
+ * @param {string} input - The search query (could be series name or book title)
+ * @returns {Promise<Object>} Complete series information
+ *   - isSeries: true if input is a series name, false if it's a book title
+ *   - seriesName: name of the series (or null if standalone book)
+ *   - allBooksInSeries: array of books in the series (empty if standalone)
  */
-function getSeriesInfo(bookTitle) {
-  if (!bookTitle) {
+async function analyzeBookOrSeries(input) {
+  if (!input) {
     return {
-      isPartOfSeries: false,
+      isSeries: false,
       seriesName: null,
       allBooksInSeries: [],
     };
   }
 
-  const normalizedTitle = bookTitle.toLowerCase().trim();
+  try {
+    const client = getOpenAIClient();
+    if (!client) {
+      throw new Error("OpenAI client not configured");
+    }
 
-  // Check each series to see if the book title is in it
-  for (const [seriesName, books] of Object.entries(BOOK_SERIES)) {
-    // Check if the exact book title matches any book in the series
-    const matchingBook = books.find(
-      (book) => book.toLowerCase() === normalizedTitle,
-    );
+    const completion = await client.chat.completions.create({
+      model: "gpt-3.5-turbo",
+      messages: [
+        {
+          role: "system",
+          content:
+            "You are a book series expert. Analyze whether input is a series name or book title, and provide series information.",
+        },
+        {
+          role: "user",
+          content: `Analyze this input: "${input}"
 
-    if (matchingBook) {
+Determine:
+1. Is this a SERIES NAME (like "Harry Potter", "Lord of the Rings") or a SPECIFIC BOOK TITLE (like "Harry Potter and the Philosopher's Stone")?
+2. If it's a series name: provide the series name and all books in that series
+3. If it's a book title: check if the book is part of a series, and if yes, provide the series name and all books in that series
+
+Respond in JSON format:
+{
+  "isSeries": true/false,
+  "seriesName": "series name" or null,
+  "allBooksInSeries": ["book1", "book2", ...] or []
+}
+
+Notes:
+- isSeries: true means the input is a series name itself, false means it's a book title
+- seriesName: the name of the series (null only if it's a standalone book)
+- allBooksInSeries: list all main series books in order (empty array only if standalone book)
+- Only include main series books, not spin-offs or companion books
+
+IMPORTANT: Return ONLY valid JSON, no other text.`,
+        },
+      ],
+      temperature: 0.3,
+      max_tokens: 500,
+    });
+
+    const response = completion.choices[0].message.content.trim();
+
+    let parsedResponse;
+    try {
+      const jsonMatch = response.match(/```(?:json)?\s*([\s\S]*?)\s*```/) || [
+        null,
+        response,
+      ];
+      parsedResponse = JSON.parse(jsonMatch[1]);
+    } catch (parseError) {
+      console.error(
+        "Failed to parse AI response for book/series analysis:",
+        response,
+      );
       return {
-        isPartOfSeries: true,
-        seriesName: seriesName,
-        allBooksInSeries: books,
+        isSeries: false,
+        seriesName: null,
+        allBooksInSeries: [],
       };
     }
-  }
 
-  // Not found in any series
-  return {
-    isPartOfSeries: false,
-    seriesName: null,
-    allBooksInSeries: [],
-  };
+    return {
+      isSeries: parsedResponse.isSeries || false,
+      seriesName: parsedResponse.seriesName || null,
+      allBooksInSeries: parsedResponse.allBooksInSeries || [],
+    };
+  } catch (error) {
+    console.error("Error analyzing book or series:", error);
+    return {
+      isSeries: false,
+      seriesName: null,
+      allBooksInSeries: [],
+    };
+  }
 }
 
 /**
- * Check if a query is a series name (not a specific book title)
- * @param {string} query - The search query
- * @returns {Object} { isSeries: boolean, seriesName: string|null }
- */
-function isSeriesQuery(query) {
-  if (!query) {
-    return { isSeries: false, seriesName: null };
-  }
-
-  const normalizedQuery = query.toLowerCase().trim();
-
-  // Check if the query matches a series name
-  for (const [seriesName, books] of Object.entries(BOOK_SERIES)) {
-    if (seriesName.toLowerCase() === normalizedQuery) {
-      return { isSeries: true, seriesName: seriesName };
-    }
-  }
-
-  // Check for common series name variations
-  const seriesVariations = {
-    "harry potter": "Harry Potter",
-    hp: "Harry Potter",
-    lotr: "The Lord of the Rings",
-    "lord of the rings": "The Lord of the Rings",
-    "the lord of the rings": "The Lord of the Rings",
-    "hunger games": "The Hunger Games",
-    "the hunger games": "The Hunger Games",
-    narnia: "The Chronicles of Narnia",
-    "chronicles of narnia": "The Chronicles of Narnia",
-    "the chronicles of narnia": "The Chronicles of Narnia",
-  };
-
-  if (seriesVariations[normalizedQuery]) {
-    return { isSeries: true, seriesName: seriesVariations[normalizedQuery] };
-  }
-
-  return { isSeries: false, seriesName: null };
-}
-
-/**
- * Check if a title is a known series name (not an individual book title)
+ * Check if a title is an actual book title (not a series name) using AI
  * @param {string} title - The title to check
- * @returns {boolean} True if this is a series name, false otherwise
+ * @returns {Promise<boolean>} True if this is a book title, false if it's a series name
  */
-function isKnownSeriesName(title) {
+async function isActualBookTitle(title) {
   if (!title) return false;
 
-  const normalizedTitle = title.toLowerCase().trim();
+  try {
+    const client = getOpenAIClient();
+    if (!client) {
+      throw new Error("OpenAI client not configured");
+    }
 
-  // List of known series names that should NOT be badged
-  const knownSeriesNames = [
-    "harry potter",
-    "the lord of the rings",
-    "lord of the rings",
-    "the hunger games",
-    "hunger games",
-    "the chronicles of narnia",
-    "chronicles of narnia",
-    "cormoran strike",
-    "strike",
-    "a song of ice and fire",
-    "game of thrones",
-    "the wheel of time",
-    "wheel of time",
-    "narnia",
-    "lotr",
-    "hp",
-  ];
+    const completion = await client.chat.completions.create({
+      model: "gpt-3.5-turbo",
+      messages: [
+        {
+          role: "system",
+          content:
+            "You are a book expert. Determine if a title is a specific book or a series name.",
+        },
+        {
+          role: "user",
+          content: `Is "${title}" a specific book title or a series name?
 
-  // Check against known series names
-  if (knownSeriesNames.includes(normalizedTitle)) {
+Note: Some titles like "The Hunger Games" are BOTH - the series name AND the first book's title. In such cases, respond as "book" since it can refer to a specific book.
+
+Respond with ONLY one word: "book" or "series"`,
+        },
+      ],
+      temperature: 0.1,
+      max_tokens: 10,
+    });
+
+    const response = completion.choices[0].message.content.trim().toLowerCase();
+    return response.includes("book");
+  } catch (error) {
+    console.error("Error checking if actual book title:", error);
+    // Default to true to avoid filtering out actual books
     return true;
   }
-
-  // Check if it matches any series name from BOOK_SERIES
-  for (const seriesName of Object.keys(BOOK_SERIES)) {
-    if (seriesName.toLowerCase() === normalizedTitle) {
-      return true;
-    }
-  }
-
-  return false;
 }
 
 /**
- * Check if a title is an actual book title (not a series name)
- * @param {string} title - The title to check
- * @returns {boolean} True if this is a book title, false if it's a series name
- */
-function isActualBookTitle(title) {
-  if (!title) return false;
-
-  const normalizedTitle = title.toLowerCase().trim();
-
-  // SPECIAL CASE: Check if it's BOTH a series name AND a book title
-  // (e.g., "The Hunger Games" is both the series name and the first book's title)
-  let isBookInDatabase = false;
-  for (const books of Object.values(BOOK_SERIES)) {
-    if (books.some((book) => book.toLowerCase() === normalizedTitle)) {
-      isBookInDatabase = true;
-      break;
-    }
-  }
-
-  // If it's in the book database, treat it as a book title (even if it's also a series name)
-  if (isBookInDatabase) {
-    return true;
-  }
-
-  // If it's a known series name and NOT in the book database, it's just a series reference
-  if (isKnownSeriesName(title)) {
-    return false;
-  }
-
-  // If not in our database, assume it's a book title (for unknown books)
-  return true;
-}
-
-/**
- * Normalize book title (handle common variations, misspellings)
+ * Normalize book title - basic cleanup only (AI handles variations)
  * @param {string} title - The title to normalize
  * @returns {string} Normalized title
  */
 function normalizeBookTitle(title) {
   if (!title) return title;
-
-  let normalized = title.trim();
-
-  // Normalize common patterns
-  const normalizations = {
-    "48 laws of power": "The 48 Laws of Power",
-    "the 48 laws of power": "The 48 Laws of Power",
-    "harry potter philosopher stone":
-      "Harry Potter and the Philosopher's Stone",
-    "harry potter and the philosopher stone":
-      "Harry Potter and the Philosopher's Stone",
-    "the great gatsby": "The Great Gatsby",
-    "great gatsby": "The Great Gatsby",
-    "lord of the rings": "The Fellowship of the Ring",
-    "the lord of the rings": "The Fellowship of the Ring",
-    "harry potter": "Harry Potter and the Philosopher's Stone",
-  };
-
-  const lowerTitle = normalized.toLowerCase();
-  if (normalizations[lowerTitle]) {
-    return normalizations[lowerTitle];
-  }
-
-  // Capitalize first letter of each word
-  normalized = normalized
-    .split(" ")
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
-    .join(" ");
-
-  return normalized;
+  return title.trim();
 }
 
 /**
@@ -250,63 +184,25 @@ function extractQuotedTitles(text) {
 
   const titles = [];
   const patterns = [
-    /"([^"]+)"/g, // Double quotes
-    /'([^']+)'/g, // Single quotes
-    /\*([^*]+)\*/g, // Italics (markdown)
-    /"([^"]+)"/g, // Curly quotes
-    /'([^']+)'/g, // Curly single quotes
+    /"([^"]+)"/g,
+    /'([^']+)'/g,
+    /\*([^*]+)\*/g,
+    /"([^"]+)"/g,
+    /'([^']+)'/g,
   ];
-
-  // Known J.K. Rowling standalone books that often get missed
-  const knownJKRBooks = [
-    "The Ickabog",
-    "The Casual Vacancy",
-    "The Christmas Pig",
-    "Fantastic Beasts and Where to Find Them",
-    "Quidditch Through the Ages",
-    "The Tales of Beedle the Bard",
-  ];
-
-  // Known standalone books by other authors
-  const knownStandaloneBooks = [
-    "1984",
-    "Animal Farm",
-    "The Great Gatsby",
-    "To Kill a Mockingbird",
-    "Anna Karenina",
-    "War and Peace",
-    "The Catcher in the Rye",
-    "Pride and Prejudice",
-    "The Hobbit",
-  ];
-
-  const allKnownBooks = [...knownJKRBooks, ...knownStandaloneBooks];
 
   for (const pattern of patterns) {
     let match;
     while ((match = pattern.exec(text)) !== null) {
       const potentialTitle = match[1].trim();
 
-      // Only treat it as a book title if:
-      // 1. It's in our known books list, OR
-      // 2. It matches a book title pattern (starts with "The " and has capitals)
-      const isKnownBook = allKnownBooks.some(
-        (book) => book.toLowerCase() === potentialTitle.toLowerCase(),
-      );
-
       const looksLikeBookTitle =
         /^(The |A |An )?[A-Z][a-zA-Z\s',]+$/.test(potentialTitle) &&
         potentialTitle.split(" ").length >= 2 &&
         potentialTitle.split(" ").length <= 10;
 
-      if (isKnownBook || looksLikeBookTitle) {
-        // Normalize to proper case if it's a known book
-        const normalizedTitle =
-          allKnownBooks.find(
-            (book) => book.toLowerCase() === potentialTitle.toLowerCase(),
-          ) || potentialTitle;
-
-        titles.push(normalizedTitle);
+      if (looksLikeBookTitle) {
+        titles.push(potentialTitle);
       }
     }
   }
@@ -329,23 +225,16 @@ function extractMarkedTitles(text) {
     const title = match[1];
     const matchIndex = match.index;
 
-    // Extract the sentence/context around this match
-    // Look BACKWARD to previous period or start, and FORWARD to next period or end
     const prevPeriod = text.lastIndexOf(".", matchIndex);
     const contextStart = prevPeriod !== -1 ? prevPeriod + 1 : 0;
-
     const nextPeriod = text.indexOf(".", matchIndex);
     const contextEnd = nextPeriod !== -1 ? nextPeriod : text.length;
-
     const context = text.substring(contextStart, contextEnd).toLowerCase();
 
-    // Check if this is explicitly described as a book or book-related action
     const bookIndicators =
       /\b(first book|second book|third book|book in|is a \w+\s*book|is a book|novel|concludes|starts|begins|ends|book of|part of|continues|followed by|includes|best known for|most famous|rest of|first in|second in|third in|in the|prequel|different work|fairy tale book|fantasy book|children's book|books? including|written many books?|other books?)\b/i;
     const hasBookIndicator = bookIndicators.test(context);
 
-    // Check if the wrapped title is followed by "series" pattern (e.g., "The X series")
-    // This indicates the title itself is being called a series
     const escapedTitle = title.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     const directSeriesReference = new RegExp(
       `\\[\\[${escapedTitle}\\]\\]\\s+(series|trilogy|saga)`,
@@ -353,54 +242,45 @@ function extractMarkedTitles(text) {
     );
     const isDirectSeriesRef = directSeriesReference.test(context);
 
-    // Check if it's a pattern like "[[Book]] - ... series" (describing which series the book belongs to)
     const bookWithSeriesDescription = new RegExp(
       `\\[\\[${escapedTitle}\\]\\]\\s*-[^\\n]*\\b(series|trilogy)`,
       "i",
     );
     const isBookWithSeriesDesc = bookWithSeriesDescription.test(context);
 
-    // Check if series-indicating words appear in the context
     const seriesIndicators = /\b(series|trilogy|saga|collection)\b/i;
     const hasSeriesIndicator = seriesIndicators.test(context);
 
-    // If it's directly called a series (e.g., "[[Harry Potter]] series"), skip it
     if (isDirectSeriesRef && !isBookWithSeriesDesc) {
       continue;
     }
 
-    // If it matches the "[[Book]] - ... series" pattern, it's a book
     if (isBookWithSeriesDesc) {
       titles.push(title);
       continue;
     }
 
-    // If it has book indicators, treat as book even if "series" also appears
     if (hasBookIndicator) {
       titles.push(title);
       continue;
     }
 
-    // If it has series indicators but no book indicators, skip it
     if (hasSeriesIndicator) {
       continue;
     }
 
-    // No clear indicators - include it
     titles.push(title);
   }
 
-  // FALLBACK: Also extract quoted/italicized titles (for when AI forgets [[brackets]])
   const quotedTitles = extractQuotedTitles(text);
 
-  // Merge quoted titles, avoiding duplicates
   for (const quotedTitle of quotedTitles) {
     const quotedLower = quotedTitle.toLowerCase().trim();
     const alreadyIncluded = titles.some(
       (existingTitle) => existingTitle.toLowerCase().trim() === quotedLower,
     );
 
-    if (!alreadyIncluded && isActualBookTitle(quotedTitle)) {
+    if (!alreadyIncluded) {
       titles.push(quotedTitle);
     }
   }
@@ -409,20 +289,19 @@ function extractMarkedTitles(text) {
 }
 
 /**
- * Classify books into badge color categories
+ * Classify books into badge color categories using AI
  * @param {string} aiResponse - The AI response text with [[marked books]]
- * @param {string} searchedQuery - The original search query from user
+ * @param {string} searchedQuery - The corrected search query (spelling/caps fixed)
  * @param {string|null} searchedBook - The specific book that was searched (null if series search)
  * @param {string|null} seriesName - The series name if searching within a series
- * @returns {Object} Classification with creamBadgeBooks, greenBadgeBooks, orangeBadgeBooks arrays
+ * @returns {Promise<Object>} Classification with creamBadgeBooks, greenBadgeBooks, orangeBadgeBooks arrays
  */
-function classifyBookBadges(
+async function classifyBookBadges(
   aiResponse,
   searchedQuery,
   searchedBook,
   seriesName,
 ) {
-  // Handle null/empty responses
   if (!aiResponse) {
     return {
       creamBadgeBooks: [],
@@ -431,66 +310,270 @@ function classifyBookBadges(
     };
   }
 
-  // Extract all marked book titles from the response
   const markedBooks = extractMarkedTitles(aiResponse);
-
-  // Remove duplicates
   const uniqueBooks = [...new Set(markedBooks)];
 
-  // CRITICAL: Filter out series names - they should NEVER be badged
-  const actualBookTitles = uniqueBooks.filter((title) =>
-    isActualBookTitle(title),
-  );
-
-  const creamBadgeBooks = [];
-  const greenBadgeBooks = [];
-  const orangeBadgeBooks = [];
-
-  // Get the series books if a series name is provided
-  let seriesBooks = [];
-  if (seriesName && BOOK_SERIES[seriesName]) {
-    seriesBooks = BOOK_SERIES[seriesName];
-  } else if (searchedBook) {
-    // If no series name but we have a searched book, try to find its series
-    const seriesInfo = getSeriesInfo(searchedBook);
-    if (seriesInfo.isPartOfSeries) {
-      seriesBooks = seriesInfo.allBooksInSeries;
-    }
+  if (uniqueBooks.length === 0) {
+    return {
+      creamBadgeBooks: [],
+      greenBadgeBooks: [],
+      orangeBadgeBooks: [],
+    };
   }
 
-  // Classify each book (only actual book titles, not series names)
-  for (const book of actualBookTitles) {
-    const bookLower = book.toLowerCase().trim();
-    const searchedBookLower = searchedBook
-      ? searchedBook.toLowerCase().trim()
-      : null;
-
-    // CREAM: Exact match to searched book
-    if (searchedBook && bookLower === searchedBookLower) {
-      creamBadgeBooks.push(book);
+  try {
+    const client = getOpenAIClient();
+    if (!client) {
+      throw new Error("OpenAI client not configured");
     }
-    // GREEN: In the same series (but not the exact searched book)
-    else if (seriesBooks.length > 0) {
-      const isInSeries = seriesBooks.some(
-        (seriesBook) => seriesBook.toLowerCase() === bookLower,
-      );
-      if (isInSeries) {
-        greenBadgeBooks.push(book);
-      } else {
-        orangeBadgeBooks.push(book);
+
+    const isSeriesSearch = !searchedBook && seriesName;
+    const isBookSearch = !!searchedBook;
+
+    let systemContent;
+    let userContent;
+
+    if (isSeriesSearch) {
+      systemContent = `You are a book classification expert. Classify books based on their relationship to a searched series.
+
+BADGE COLOR RULES FOR SERIES SEARCH:
+- CREAM: NEVER use cream for series searches (there is no specific searched book to match)
+- GREEN: Individual book titles that belong to the searched series
+- ORANGE: Books in a different series or standalone books
+- NO BADGE: Series names themselves should NOT be classified (they're descriptive text, not book titles)
+
+CRITICAL: Series names (like "Harry Potter", "The Lord of the Rings") are NOT book titles and should be EXCLUDED from classification. Only classify actual individual book titles.
+
+IMPORTANT: When the user searches for a series name, ALL individual books in that series should be GREEN, never CREAM.`;
+
+      userContent = `User searched for SERIES: "${seriesName}"
+Corrected search term: "${searchedQuery}"
+(No specific book was searched - the user searched for the series name itself)
+
+Classify these extracted titles:
+${uniqueBooks.map((book, i) => `${i + 1}. ${book}`).join("\n")}
+
+For each title, determine:
+1. Is this just the series name itself (e.g., "Harry Potter", "Lord of the Rings") OR a complete individual book title (e.g., "Harry Potter and the Philosopher's Stone", "The Fellowship of the Ring")?
+2. If it's JUST the series name WITHOUT a subtitle (matches the searched series "${seriesName}"), respond with "SKIP" - series names should NOT be badged
+3. If it's a COMPLETE individual book title with subtitle/book-specific name, classify it as:
+   - GREEN: If it belongs to the searched series "${seriesName}"
+   - ORANGE: If it's from a different series or standalone book
+
+EXAMPLES for series search "Harry Potter":
+- "Harry Potter" -> SKIP (series name only, no subtitle)
+- "Harry Potter and the Philosopher's Stone" -> GREEN (individual book in searched series)
+- "Harry Potter and the Chamber of Secrets" -> GREEN (individual book in searched series)
+- "The Casual Vacancy" -> ORANGE (different book by same author, not in Harry Potter series)
+
+EXAMPLES for series search "The Lord of the Rings":
+- "The Lord of the Rings" -> SKIP (series name only)
+- "Lord of the Rings" -> SKIP (series name only, just missing "The")
+- "The Fellowship of the Ring" -> GREEN (individual book in searched series)
+- "The Two Towers" -> GREEN (individual book in searched series)
+
+Respond in JSON format:
+{
+  "classifications": [
+    {"book": "Book Title", "color": "GREEN|ORANGE|SKIP", "reason": "brief explanation"},
+    ...
+  ]
+}
+
+CRITICAL: 
+- Use SKIP for the series name itself when it appears without a subtitle/book-specific name
+- Do NOT use CREAM for any books since this is a series search
+- Only classify actual individual book titles as GREEN or ORANGE
+IMPORTANT: Return ONLY valid JSON, no other text.`;
+    } else if (isBookSearch) {
+      systemContent = `You are a book classification expert. Classify books based on their relationship to a searched book.
+
+BADGE COLOR RULES FOR BOOK SEARCH:
+- CREAM: The exact same book as the searched book (only ONE book should get cream)
+- GREEN: Books in the same series as the searched book (but NOT the searched book itself)
+- ORANGE: Books in a different series or standalone books
+- NO BADGE: Series names themselves should NOT be classified (they're descriptive text, not book titles)
+
+CRITICAL: Series names (like "Harry Potter", "The Lord of the Rings") are NOT book titles and should be EXCLUDED from classification. Only classify actual individual book titles.
+
+IMPORTANT: Only ONE book should get CREAM - the exact book that was searched. Even if a book is mentioned as an alternative title or edition, if it's essentially the same book, use CREAM.`;
+
+      userContent = `User searched for BOOK: "${searchedBook}"
+Corrected search term: "${searchedQuery}"
+Series name: "${seriesName || "N/A"}"
+
+Classify these extracted titles:
+${uniqueBooks.map((book, i) => `${i + 1}. ${book}`).join("\n")}
+
+For each title, determine:
+1. Is this just a series name (e.g., "Harry Potter", "Lord of the Rings") OR a complete individual book title with subtitle (e.g., "Harry Potter and the Philosopher's Stone", "The Fellowship of the Ring")?
+2. If it's JUST the series name WITHOUT subtitle/book-specific name (matches "${seriesName}"), respond with "SKIP" - series names should NOT be badged
+3. If it's a COMPLETE individual book title, classify it as:
+   - CREAM: If it's the exact book that was searched ("${searchedBook}")
+   - GREEN: If it's in the same series ("${seriesName}") but a different book
+   - ORANGE: If it's in a different series or standalone
+
+EXAMPLES for book search "${searchedBook}"${seriesName ? ` (from series "${seriesName}")` : ""}:
+${seriesName ? `- "${seriesName}" -> SKIP (series name only, no subtitle)\n- "Harry Potter" -> SKIP (series name only if that's the series name)\n` : ""}- "${searchedBook}" -> CREAM (the exact searched book)
+- Other books in same series -> GREEN
+- Books from different series -> ORANGE
+
+Respond in JSON format:
+{
+  "classifications": [
+    {"book": "Book Title", "color": "CREAM|GREEN|ORANGE|SKIP", "reason": "brief explanation"},
+    ...
+  ]
+}
+
+CRITICAL: 
+- Use SKIP for the series name itself when it appears without a subtitle/book-specific name
+- Series names like "${seriesName || "Harry Potter, Lord of the Rings, etc."}" should ALWAYS be SKIP
+- Only classify actual individual book titles with complete names
+IMPORTANT: Return ONLY valid JSON, no other text.`;
+    } else {
+      return {
+        creamBadgeBooks: [],
+        greenBadgeBooks: [],
+        orangeBadgeBooks: uniqueBooks,
+      };
+    }
+
+    const completion = await client.chat.completions.create({
+      model: "gpt-3.5-turbo",
+      messages: [
+        {
+          role: "system",
+          content: systemContent,
+        },
+        {
+          role: "user",
+          content: userContent,
+        },
+      ],
+      temperature: 0.3,
+      max_tokens: 1000,
+    });
+
+    const response = completion.choices[0].message.content.trim();
+
+    let parsedResponse;
+    try {
+      const jsonMatch = response.match(/```(?:json)?\s*([\s\S]*?)\s*```/) || [
+        null,
+        response,
+      ];
+      parsedResponse = JSON.parse(jsonMatch[1]);
+    } catch (parseError) {
+      console.error("Failed to parse AI classification response:", response);
+      return {
+        creamBadgeBooks: [],
+        greenBadgeBooks: [],
+        orangeBadgeBooks: uniqueBooks,
+      };
+    }
+
+    const creamBadgeBooks = [];
+    const greenBadgeBooks = [];
+    const orangeBadgeBooks = [];
+
+    if (
+      parsedResponse.classifications &&
+      Array.isArray(parsedResponse.classifications)
+    ) {
+      for (const classification of parsedResponse.classifications) {
+        const book = classification.book;
+        const color = classification.color?.toUpperCase();
+
+        if (color === "SKIP") {
+          continue;
+        } else if (color === "CREAM") {
+          creamBadgeBooks.push(book);
+        } else if (color === "GREEN") {
+          greenBadgeBooks.push(book);
+        } else {
+          orangeBadgeBooks.push(book);
+        }
       }
     }
-    // ORANGE: Everything else (when no series or not in series)
-    else {
-      orangeBadgeBooks.push(book);
-    }
-  }
 
-  return {
-    creamBadgeBooks,
-    greenBadgeBooks,
-    orangeBadgeBooks,
-  };
+    const titlesMatch = (title1, title2) => {
+      if (!title1 || !title2) return false;
+      const t1 = title1
+        .toLowerCase()
+        .trim()
+        .replace(/^the\s+/i, "");
+      const t2 = title2
+        .toLowerCase()
+        .trim()
+        .replace(/^the\s+/i, "");
+      return t1 === t2;
+    };
+
+    if (searchedBook) {
+      const matchingBooks = uniqueBooks.filter((book) =>
+        titlesMatch(book, searchedBook),
+      );
+
+      const removedFromGreen = greenBadgeBooks.filter(
+        (book) => !titlesMatch(book, searchedBook),
+      );
+      const removedFromOrange = orangeBadgeBooks.filter(
+        (book) => !titlesMatch(book, searchedBook),
+      );
+
+      const updatedCream = [...creamBadgeBooks, ...matchingBooks];
+      const uniqueCream = [...new Set(updatedCream)];
+
+      creamBadgeBooks.length = 0;
+      creamBadgeBooks.push(...uniqueCream);
+
+      greenBadgeBooks.length = 0;
+      greenBadgeBooks.push(...removedFromGreen);
+
+      orangeBadgeBooks.length = 0;
+      orangeBadgeBooks.push(...removedFromOrange);
+    }
+
+    if (seriesName) {
+      const seriesNameLower = seriesName.toLowerCase().trim();
+
+      const matchesSeriesName = (book) => {
+        const bookLower = book.toLowerCase().trim();
+        return (
+          bookLower === seriesNameLower ||
+          bookLower === seriesNameLower.replace(/^the\s+/i, "") ||
+          seriesNameLower === bookLower.replace(/^the\s+/i, "")
+        );
+      };
+
+      const filterOutSeriesName = (books) =>
+        books.filter((book) => !matchesSeriesName(book));
+
+      const filteredCream = filterOutSeriesName(creamBadgeBooks);
+      const filteredGreen = filterOutSeriesName(greenBadgeBooks);
+      const filteredOrange = filterOutSeriesName(orangeBadgeBooks);
+
+      return {
+        creamBadgeBooks: filteredCream,
+        greenBadgeBooks: filteredGreen,
+        orangeBadgeBooks: filteredOrange,
+      };
+    }
+
+    return {
+      creamBadgeBooks,
+      greenBadgeBooks,
+      orangeBadgeBooks,
+    };
+  } catch (error) {
+    console.error("Error classifying books with AI:", error);
+    return {
+      creamBadgeBooks: [],
+      greenBadgeBooks: [],
+      orangeBadgeBooks: uniqueBooks,
+    };
+  }
 }
 
 /**
@@ -504,11 +587,9 @@ function applyColoredBadges(aiResponse, classification) {
 
   let result = aiResponse;
 
-  // Helper function to determine badge color for a book
   const getBadgeColor = (bookTitle) => {
     const bookLower = bookTitle.toLowerCase().trim();
 
-    // Check cream badges
     if (
       classification.creamBadgeBooks.some(
         (book) => book.toLowerCase().trim() === bookLower,
@@ -517,7 +598,6 @@ function applyColoredBadges(aiResponse, classification) {
       return "cream";
     }
 
-    // Check green badges
     if (
       classification.greenBadgeBooks.some(
         (book) => book.toLowerCase().trim() === bookLower,
@@ -526,7 +606,6 @@ function applyColoredBadges(aiResponse, classification) {
       return "green";
     }
 
-    // Check orange badges
     if (
       classification.orangeBadgeBooks.some(
         (book) => book.toLowerCase().trim() === bookLower,
@@ -535,29 +614,18 @@ function applyColoredBadges(aiResponse, classification) {
       return "orange";
     }
 
-    // Not found in any classification - could be a series name
     return null;
   };
 
-  // Replace all [[Book Title]] with appropriate badge HTML or plain text
   result = result.replace(
     /\[\[([^\]]+)\]\](\s+(?:series|trilogy|saga|collection))?/gi,
     (match, bookTitle, seriesIndicator) => {
-      // CRITICAL: If followed by series-indicating words, this is a series reference
       if (seriesIndicator) {
-        // Don't badge series references - return without brackets
         return bookTitle + seriesIndicator;
-      }
-
-      // CRITICAL: Check if this is a series name (but not also a book title)
-      if (isKnownSeriesName(bookTitle) && !isActualBookTitle(bookTitle)) {
-        // Pure series names should NOT be badged - return as plain text
-        return bookTitle;
       }
 
       const badgeColor = getBadgeColor(bookTitle);
 
-      // If no badge color found (not in classification), return plain text
       if (!badgeColor) {
         return bookTitle;
       }
@@ -566,102 +634,31 @@ function applyColoredBadges(aiResponse, classification) {
     },
   );
 
-  // FALLBACK: Also badge quoted/italicized book titles (for when AI forgets [[brackets]])
-  // Handle double quotes: "The Ickabog"
-  result = result.replace(/"([^"]+)"/g, (match, bookTitle) => {
+  const applyBadgeToMatch = (match, bookTitle, wrapInEm = false) => {
     const badgeColor = getBadgeColor(bookTitle);
-    if (badgeColor) {
-      return `<span class="book-badge book-badge-${badgeColor}">${bookTitle}</span>`;
-    }
-    return match; // Keep original if not in classification
-  });
+    if (!badgeColor) return match;
 
-  // Handle curly quotes: "The Ickabog"
-  result = result.replace(/"([^"]+)"/g, (match, bookTitle) => {
-    const badgeColor = getBadgeColor(bookTitle);
-    if (badgeColor) {
-      return `<span class="book-badge book-badge-${badgeColor}">${bookTitle}</span>`;
-    }
-    return match; // Keep original if not in classification
-  });
+    const content = wrapInEm ? `<em>${bookTitle}</em>` : bookTitle;
+    return `<span class="book-badge book-badge-${badgeColor}">${content}</span>`;
+  };
 
-  // Handle italics: *The Ickabog* (but keep the markdown)
-  result = result.replace(/\*([^*]+)\*/g, (match, bookTitle) => {
-    const badgeColor = getBadgeColor(bookTitle);
-    if (badgeColor) {
-      return `<span class="book-badge book-badge-${badgeColor}"><em>${bookTitle}</em></span>`;
-    }
-    return match; // Keep original if not in classification
-  });
+  result = result.replace(/[""]([^""]+)[""]/g, (match, bookTitle) =>
+    applyBadgeToMatch(match, bookTitle),
+  );
 
-  return result;
-}
-
-/**
- * Extract books with their relationship context
- * @param {string} aiResponse - The AI response text
- * @param {string} searchedBook - The book that was searched
- * @returns {Array<Object>} Array of books with relationship metadata
- */
-function extractBooksWithRelationships(aiResponse, searchedBook) {
-  if (!aiResponse) return [];
-
-  // Extract all marked books
-  const markedBooks = extractMarkedTitles(aiResponse);
-
-  // Get series info for the searched book
-  const searchedSeriesInfo = searchedBook
-    ? getSeriesInfo(searchedBook)
-    : { isPartOfSeries: false, seriesName: null, allBooksInSeries: [] };
-
-  const result = [];
-
-  for (const book of markedBooks) {
-    const bookLower = book.toLowerCase().trim();
-    const searchedBookLower = searchedBook
-      ? searchedBook.toLowerCase().trim()
-      : null;
-
-    // Check if this is the searched book
-    const isSearchedBook = searchedBook && bookLower === searchedBookLower;
-
-    // Check if this book is in the same series
-    let inSameSeries = false;
-    let badgeColor = "orange";
-
-    if (isSearchedBook) {
-      badgeColor = "cream";
-      inSameSeries = searchedSeriesInfo.isPartOfSeries;
-    } else if (searchedSeriesInfo.isPartOfSeries) {
-      inSameSeries = searchedSeriesInfo.allBooksInSeries.some(
-        (seriesBook) => seriesBook.toLowerCase() === bookLower,
-      );
-      if (inSameSeries) {
-        badgeColor = "green";
-      }
-    }
-
-    result.push({
-      title: book,
-      badgeColor: badgeColor,
-      isSearchedBook: isSearchedBook,
-      inSameSeries: inSameSeries,
-    });
-  }
+  result = result.replace(/\*([^*]+)\*/g, (match, bookTitle) =>
+    applyBadgeToMatch(match, bookTitle, true),
+  );
 
   return result;
 }
 
 module.exports = {
   classifyBookBadges,
-  getSeriesInfo,
+  analyzeBookOrSeries,
   normalizeBookTitle,
   applyColoredBadges,
-  extractBooksWithRelationships,
   extractMarkedTitles,
   extractQuotedTitles,
-  isSeriesQuery,
-  isKnownSeriesName,
   isActualBookTitle,
-  BOOK_SERIES,
 };

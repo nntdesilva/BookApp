@@ -4,10 +4,14 @@ All notable changes to the BookApp project are documented in the [changelogs](./
 
 ## Quick Links
 
-- **[Latest Version: v0.4.0](./changelogs/v0.4.0.md)** - 2026-01-28
+- **[Latest Version: v0.4.1](./changelogs/v0.4.1.md)** - 2026-01-30
 - **[Version History](./changelogs/README.md)** - Browse all versions
 
 ## Recent Updates
+
+### [v0.4.1](./changelogs/v0.4.1.md) - 2026-01-30
+
+Bug Fix: Corrected badge color assignment by preserving search intent (series vs. standalone) in title correction logic.
 
 ### [v0.4.0](./changelogs/v0.4.0.md) - 2026-01-28
 

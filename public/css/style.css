@@ -181,26 +181,7 @@ body {
   font-weight: 400;
 }
 
-/* Book Name Badge Styles */
-.book-name-badge {
-  background: linear-gradient(to bottom, transparent 50%, #e8dfc8 50%);
-  color: #2a2a2a;
-  padding: 2px 5px;
-  font-weight: 600;
-  letter-spacing: 0.02em;
-  font-style: italic;
-  display: inline;
-  border-bottom: 2px solid #d4c5a9;
-  transition: all 0.3s ease;
-  border-radius: 2px;
-}
-
-.book-name-badge:hover {
-  background: linear-gradient(to bottom, transparent 50%, #d4c5a9 50%);
-  border-bottom-color: #c4b599;
-}
-
-/* Colored Book Badge Styles - Subtle Design */
+/* Colored Book Badge Styles */
 .book-badge {
   display: inline;
   padding: 1px 4px;
