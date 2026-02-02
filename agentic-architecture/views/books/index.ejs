@@ -1,0 +1,141 @@
+<% layout('layouts/boilerplate') %>
+
+<div class="header">
+    <a href="/" class="home-link">
+        <h1><i class="fas fa-book"></i>Bibliothèque</h1>
+    </a>
+    <p class="subtitle">A Literary Collection</p>
+</div>
+
+<% if (typeof error !== 'undefined' && error) { %>
+    <div class="alert alert-error">
+        <i class="fas fa-exclamation-circle"></i>
+        <%= error %>
+    </div>
+<% } %>
+
+<div class="chat-container">
+    <div class="welcome-message">
+        <i class="fas fa-book-open"></i>
+        <p>Ask me anything about books, authors, or literature</p>
+    </div>
+
+    <!-- Chat Interface -->
+    <div class="chat-section">
+        <div class="chat-messages" id="chatMessages">
+            <!-- Chat messages will appear here -->
+        </div>
+        
+        <div class="chat-input-container">
+            <form id="chatForm" class="chat-form">
+                <div class="chat-input-wrapper">
+                    <input 
+                        type="text" 
+                        id="chatInput" 
+                        class="chat-input" 
+                        placeholder="Ask about any book, author, or literary topic..."
+                        autocomplete="off"
+                        required
+                    >
+                    <button type="submit" class="chat-send-button" id="chatSendButton">
+                        <i class="fas fa-paper-plane"></i>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+    const chatForm = document.getElementById('chatForm');
+    const chatInput = document.getElementById('chatInput');
+    const chatMessages = document.getElementById('chatMessages');
+    const chatSendButton = document.getElementById('chatSendButton');
+
+    chatForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        
+        const message = chatInput.value.trim();
+        if (!message) return;
+
+        appendMessage(message, 'user');
+        chatInput.value = '';
+        
+        chatInput.disabled = true;
+        chatSendButton.disabled = true;
+        
+        const typingId = appendTypingIndicator();
+
+        try {
+            const response = await fetch('/chat', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ message })
+            });
+
+            const data = await response.json();
+            
+            removeTypingIndicator(typingId);
+
+            if (data.success) {
+                appendMessage(data.response, 'assistant', true);
+            } else {
+                appendMessage(data.error || 'An error occurred. Please try again.', 'error');
+            }
+        } catch (error) {
+            removeTypingIndicator(typingId);
+            appendMessage('Failed to send message. Please try again.', 'error');
+        } finally {
+            chatInput.disabled = false;
+            chatSendButton.disabled = false;
+            chatInput.focus();
+        }
+    });
+
+    function appendMessage(content, type, isHTML = false) {
+        const messageDiv = document.createElement('div');
+        messageDiv.className = `chat-message chat-message-${type}`;
+        
+        const contentDiv = document.createElement('div');
+        contentDiv.className = 'chat-message-content';
+        
+        if (isHTML) {
+            contentDiv.innerHTML = content;
+        } else {
+            contentDiv.textContent = content;
+        }
+        
+        messageDiv.appendChild(contentDiv);
+        chatMessages.appendChild(messageDiv);
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+    }
+
+    function appendTypingIndicator() {
+        const typingDiv = document.createElement('div');
+        typingDiv.className = 'chat-message chat-message-assistant typing-indicator';
+        typingDiv.id = 'typing-' + Date.now();
+        
+        const contentDiv = document.createElement('div');
+        contentDiv.className = 'chat-message-content';
+        contentDiv.innerHTML = '<span class="typing-dot"></span><span class="typing-dot"></span><span class="typing-dot"></span>';
+        
+        typingDiv.appendChild(contentDiv);
+        chatMessages.appendChild(typingDiv);
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+        
+        return typingDiv.id;
+    }
+
+    function removeTypingIndicator(id) {
+        const typingDiv = document.getElementById(id);
+        if (typingDiv) {
+            typingDiv.remove();
+        }
+    }
+
+    if (chatInput) {
+        chatInput.focus();
+    }
+</script>

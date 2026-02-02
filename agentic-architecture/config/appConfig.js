@@ -1,0 +1,38 @@
+/**
+ * Application Configuration
+ * Centralized configuration for the application
+ */
+
+module.exports = {
+  // Server configuration
+  server: {
+    port: process.env.PORT || 3000,
+    env: process.env.NODE_ENV || "development",
+  },
+
+  // Session configuration
+  session: {
+    secret:
+      process.env.SESSION_SECRET || "your-secret-key-change-in-production",
+    resave: false,
+    saveUninitialized: false,
+    cookie: {
+      maxAge: 1000 * 60 * 60 * 24, // 24 hours
+      secure: process.env.NODE_ENV === "production", // Use secure cookies in production
+      httpOnly: true,
+    },
+  },
+
+  // OpenAI configuration
+  openai: {
+    apiKey: process.env.OPENAI_API_KEY,
+    model: process.env.OPENAI_MODEL || "gpt-4.1",
+    temperature: parseFloat(process.env.OPENAI_TEMPERATURE) || 0.7,
+    maxTokens: parseInt(process.env.OPENAI_MAX_TOKENS) || 1000,
+  },
+
+  // Conversation settings
+  conversation: {
+    maxHistoryMessages: parseInt(process.env.MAX_HISTORY_MESSAGES) || 15,
+  },
+};
