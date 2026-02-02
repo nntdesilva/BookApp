@@ -7,36 +7,36 @@ require("dotenv").config();
 
 const app = express();
 
-const bookRoutes = require("./routes/books");
+// Import configuration
+const config = require("./config/appConfig");
 
+// Import routes
+const bookRoutes = require("./routes/bookRoutes");
+
+// View engine setup
 app.engine("ejs", ejsMate);
 app.set("view engine", "ejs");
 app.set("views", path.join(__dirname, "views"));
 
+// Middleware
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 app.use(methodOverride("_method"));
 app.use(express.static(path.join(__dirname, "public")));
 
-app.use(
-  session({
-    secret:
-      process.env.SESSION_SECRET || "your-secret-key-change-in-production",
-    resave: false,
-    saveUninitialized: false,
-    cookie: {
-      maxAge: 1000 * 60 * 60 * 24,
-    },
-  }),
-);
+// Session configuration
+app.use(session(config.session));
 
+// Routes
 app.use("/", bookRoutes);
 
+// Error handling middleware
 app.use((err, req, res, next) => {
   console.error(err.stack);
   res.status(500).render("error", { error: err.message });
 });
 
-app.listen(3000, () => {
-  console.log(`Server is running on port 3000`);
+app.listen(config.server.port, () => {
+  console.log(`Server is running on port ${config.server.port}`);
+  console.log(`Environment: ${config.server.env}`);
 });

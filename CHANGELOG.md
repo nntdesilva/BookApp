@@ -4,10 +4,14 @@ All notable changes to the BookApp project are documented in the [changelogs](./
 
 ## Quick Links
 
-- **[Latest Version: v0.4.1](./changelogs/v0.4.1.md)** - 2026-01-30
+- **[Latest Version: v0.5.0](./changelogs/v0.5.0.md)** - 2026-02-02
 - **[Version History](./changelogs/README.md)** - Browse all versions
 
 ## Recent Updates
+
+### [v0.5.0](./changelogs/v0.5.0.md) - 2026-02-02
+
+Major Refactor: Agentic architecture implementation with meta-prompt system and removal of colored badge detector.
 
 ### [v0.4.1](./changelogs/v0.4.1.md) - 2026-01-30
 
