@@ -67,8 +67,89 @@ function validateEnvironment(requiredVars) {
   };
 }
 
+/**
+ * Validate ISBN-13 format
+ * ISBN-13 must be exactly 13 digits with valid checksum
+ * @param {string} isbn - ISBN to validate
+ * @returns {Object} - { valid: boolean, error?: string, normalizedIsbn?: string }
+ */
+function validateIsbn13(isbn) {
+  if (!isbn || typeof isbn !== "string") {
+    return { valid: false, error: "ISBN is required" };
+  }
+
+  // Remove any hyphens or spaces
+  const cleanIsbn = isbn.replace(/[-\s]/g, "");
+
+  // Must be exactly 13 digits
+  if (!/^\d{13}$/.test(cleanIsbn)) {
+    return {
+      valid: false,
+      error: "ISBN-13 must be exactly 13 digits",
+    };
+  }
+
+  // Validate ISBN-13 checksum
+  let sum = 0;
+  for (let i = 0; i < 12; i++) {
+    sum += parseInt(cleanIsbn[i]) * (i % 2 === 0 ? 1 : 3);
+  }
+  const checkDigit = (10 - (sum % 10)) % 10;
+
+  if (checkDigit !== parseInt(cleanIsbn[12])) {
+    return {
+      valid: false,
+      error: "Invalid ISBN-13 checksum",
+    };
+  }
+
+  return {
+    valid: true,
+    normalizedIsbn: cleanIsbn,
+  };
+}
+
+/**
+ * Validate favorite book data
+ * @param {Object} bookData - Book data with isbn13 and title
+ * @returns {Object} - { valid: boolean, error?: string }
+ */
+function validateFavoriteBook(bookData) {
+  if (!bookData || typeof bookData !== "object") {
+    return { valid: false, error: "Book data is required" };
+  }
+
+  const { isbn13, title } = bookData;
+
+  // Validate ISBN-13
+  const isbnValidation = validateIsbn13(isbn13);
+  if (!isbnValidation.valid) {
+    return isbnValidation;
+  }
+
+  // Validate title
+  if (!title || typeof title !== "string") {
+    return { valid: false, error: "Book title is required" };
+  }
+
+  if (title.trim() === "") {
+    return { valid: false, error: "Book title cannot be empty" };
+  }
+
+  if (title.length > 500) {
+    return {
+      valid: false,
+      error: "Book title is too long (max 500 characters)",
+    };
+  }
+
+  return { valid: true };
+}
+
 module.exports = {
   validateMessage,
   sanitizeInput,
   validateEnvironment,
+  validateIsbn13,
+  validateFavoriteBook,
 };

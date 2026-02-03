@@ -5,6 +5,7 @@
 const aiService = require("../services/aiService");
 const tagService = require("../services/tagService");
 const conversationService = require("../services/conversationService");
+const favoriteService = require("../services/favoriteService");
 const validators = require("../utils/validators");
 const config = require("../config/appConfig");
 
@@ -16,10 +17,45 @@ module.exports.index = (req, res) => {
   // Initialize conversation history for new sessions
   conversationService.initializeConversation(req.session);
 
+  // Clear favorites list on page refresh
+  favoriteService.clearFavorites(req.session);
+
   res.render("books/index", {
     error: null,
   });
 };
+
+/**
+ * Execute a favorite function and return the result
+ * @param {Object} session - Express session object
+ * @param {string} functionName - Name of the function to execute
+ * @param {Object} args - Function arguments
+ * @returns {Object} - Function execution result
+ */
+function executeFavoriteFunction(session, functionName, args) {
+  // Initialize favorites in session
+  favoriteService.initializeFavorites(session);
+
+  switch (functionName) {
+    case "add_to_favorites": {
+      // Normalize ISBN (remove hyphens/spaces)
+      const normalizedIsbn = favoriteService.normalizeIsbn13(args.isbn13);
+      return favoriteService.addFavorite(session, normalizedIsbn, args.title);
+    }
+    case "remove_from_favorites": {
+      const normalizedIsbn = favoriteService.normalizeIsbn13(args.isbn13);
+      return favoriteService.removeFavorite(session, normalizedIsbn);
+    }
+    case "list_favorites": {
+      return favoriteService.listFavorites(session);
+    }
+    default:
+      return {
+        success: false,
+        message: `Unknown function: ${functionName}`,
+      };
+  }
+}
 
 /**
  * Handle chat messages from the user
@@ -44,19 +80,43 @@ module.exports.chat = async (req, res) => {
       });
     }
 
-    // Initialize conversation history if needed
+    // Initialize conversation history and favorites if needed
     conversationService.initializeConversation(req.session);
+    favoriteService.initializeFavorites(req.session);
 
     // Get current conversation history
     const history = conversationService.getConversationHistory(req.session);
 
     // Generate AI response using the AI service
-    const result = await aiService.generateChatResponse(message, history);
+    let result = await aiService.generateChatResponse(message, history);
 
     if (result.error) {
       return res.status(500).json({
         error: result.error,
       });
+    }
+
+    // Check if AI wants to execute functions
+    if (result.requiresFunctionExecution && result.functionCalls) {
+      // Execute all requested functions
+      const functionResults = result.functionCalls.map((call) => ({
+        id: call.id,
+        name: call.name,
+        result: executeFavoriteFunction(req.session, call.name, call.arguments),
+      }));
+
+      // Continue conversation with function results
+      result = await aiService.continueAfterFunctionExecution(
+        result.conversationHistory,
+        result.assistantMessage,
+        functionResults
+      );
+
+      if (result.error) {
+        return res.status(500).json({
+          error: result.error,
+        });
+      }
     }
 
     // Convert XML tags to HTML for rendering
@@ -65,13 +125,13 @@ module.exports.chat = async (req, res) => {
     // Update conversation history in session
     conversationService.updateConversationHistory(
       req.session,
-      result.conversationHistory,
+      result.conversationHistory
     );
 
     // Trim history to prevent token limit issues
     conversationService.trimConversationHistory(
       req.session,
-      config.conversation.maxHistoryMessages,
+      config.conversation.maxHistoryMessages
     );
 
     res.json({

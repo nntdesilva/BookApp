@@ -8,12 +8,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Version History
 
 ### Latest Versions
+
+- **[v0.6.0](v0.6.0.md)** - 2026-02-03
+
+  - Major Feature: Favorites List Management
+  - AI-powered CRUD operations for favorites
+  - ISBN-13 validation with checksum verification
+  - Session-based storage with MongoDB-ready architecture
+
+- **[v0.5.0](v0.5.0.md)** - 2026-02-02
+
+  - Major Refactor: Agentic Architecture
+  - Meta-prompt system implementation
+  - Removed colored badge detector
+  - Enhanced topic change detection
+
+- **[v0.4.1](v0.4.1.md)** - 2026-01-30
+
+  - Bug Fix: Corrected badge color assignment
+  - Preserved search intent in title correction logic
+
 - **[v0.3.2](v0.3.2.md)** - 2026-01-26
+
   - Fixed standalone book title badging consistency
   - Fixed series name search returning incomplete titles
   - Enhanced system prompts and title identification
 
 - **[v0.3.1](v0.3.1.md)** - 2026-01-25
+
   - Intelligent title identification using AI workflows
   - Badge accuracy improvements
   - UI refinements and styling updates
@@ -24,7 +46,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Elegant badge styling and visual design
 
 ### Previous Versions
+
 - **[v0.2.0](v0.2.0.md)** - 2026-01-24
+
   - Major Feature: Multi-Turn Chat Interaction
   - Session management and conversation history
   - Real-time messaging interface
@@ -36,4 +60,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-*For questions, issues, or contributions, please refer to the README.md file in the project root.*
+_For questions, issues, or contributions, please refer to the README.md file in the project root._
