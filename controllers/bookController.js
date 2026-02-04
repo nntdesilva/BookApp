@@ -17,9 +17,6 @@ module.exports.index = (req, res) => {
   // Initialize conversation history for new sessions
   conversationService.initializeConversation(req.session);
 
-  // Clear favorites list on page refresh
-  favoriteService.clearFavorites(req.session);
-
   res.render("books/index", {
     error: null,
   });
@@ -27,27 +24,24 @@ module.exports.index = (req, res) => {
 
 /**
  * Execute a favorite function and return the result
- * @param {Object} session - Express session object
+ * @param {string} userId - User's MongoDB ID
  * @param {string} functionName - Name of the function to execute
  * @param {Object} args - Function arguments
- * @returns {Object} - Function execution result
+ * @returns {Promise<Object>} - Function execution result
  */
-function executeFavoriteFunction(session, functionName, args) {
-  // Initialize favorites in session
-  favoriteService.initializeFavorites(session);
-
+async function executeFavoriteFunction(userId, functionName, args) {
   switch (functionName) {
     case "add_to_favorites": {
       // Normalize ISBN (remove hyphens/spaces)
       const normalizedIsbn = favoriteService.normalizeIsbn13(args.isbn13);
-      return favoriteService.addFavorite(session, normalizedIsbn, args.title);
+      return favoriteService.addFavorite(userId, normalizedIsbn, args.title);
     }
     case "remove_from_favorites": {
       const normalizedIsbn = favoriteService.normalizeIsbn13(args.isbn13);
-      return favoriteService.removeFavorite(session, normalizedIsbn);
+      return favoriteService.removeFavorite(userId, normalizedIsbn);
     }
     case "list_favorites": {
-      return favoriteService.listFavorites(session);
+      return favoriteService.listFavorites(userId);
     }
     default:
       return {
@@ -80,9 +74,8 @@ module.exports.chat = async (req, res) => {
       });
     }
 
-    // Initialize conversation history and favorites if needed
+    // Initialize conversation history if needed
     conversationService.initializeConversation(req.session);
-    favoriteService.initializeFavorites(req.session);
 
     // Get current conversation history
     const history = conversationService.getConversationHistory(req.session);
@@ -98,12 +91,18 @@ module.exports.chat = async (req, res) => {
 
     // Check if AI wants to execute functions
     if (result.requiresFunctionExecution && result.functionCalls) {
-      // Execute all requested functions
-      const functionResults = result.functionCalls.map((call) => ({
-        id: call.id,
-        name: call.name,
-        result: executeFavoriteFunction(req.session, call.name, call.arguments),
-      }));
+      // Execute all requested functions (now async with MongoDB)
+      const functionResults = await Promise.all(
+        result.functionCalls.map(async (call) => ({
+          id: call.id,
+          name: call.name,
+          result: await executeFavoriteFunction(
+            req.user._id,
+            call.name,
+            call.arguments
+          ),
+        }))
+      );
 
       // Continue conversation with function results
       result = await aiService.continueAfterFunctionExecution(

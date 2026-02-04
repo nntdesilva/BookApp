@@ -3,15 +3,27 @@ const path = require("path");
 const methodOverride = require("method-override");
 const ejsMate = require("ejs-mate");
 const session = require("express-session");
+const passport = require("./config/passport");
 require("dotenv").config();
+
+// Import MongoStore - connect-mongo v6.x uses default export
+const MongoStore = require("connect-mongo").default || require("connect-mongo");
 
 const app = express();
 
 // Import configuration
 const config = require("./config/appConfig");
+const { connectDB } = require("./config/database");
 
 // Import routes
 const bookRoutes = require("./routes/bookRoutes");
+const authRoutes = require("./routes/authRoutes");
+
+// Import middleware
+const { requireAuth } = require("./middleware/auth");
+
+// Connect to MongoDB
+connectDB(config.mongodb.uri);
 
 // View engine setup
 app.engine("ejs", ejsMate);
@@ -24,11 +36,24 @@ app.use(express.json());
 app.use(methodOverride("_method"));
 app.use(express.static(path.join(__dirname, "public")));
 
-// Session configuration
-app.use(session(config.session));
+// Session configuration with MongoDB store
+app.use(
+  session({
+    ...config.session,
+    store: MongoStore.create({
+      mongoUrl: config.mongodb.uri,
+      touchAfter: 24 * 60 * 60, // lazy session update (24 hours)
+    }),
+  })
+);
+
+// Initialize Passport and restore authentication state from session
+app.use(passport.initialize());
+app.use(passport.session());
 
 // Routes
-app.use("/", bookRoutes);
+app.use("/", authRoutes);
+app.use("/", requireAuth, bookRoutes);
 
 // Error handling middleware
 app.use((err, req, res, next) => {

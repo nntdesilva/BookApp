@@ -1,150 +1,9 @@
 /**
- * Favorite Service - Handles favorite books storage in session
- * Uses session-based storage with future MongoDB migration in mind
+ * Favorite Service - Handles favorite books storage in MongoDB
+ * Uses user's favorites array in the User document
  */
 
-/**
- * Initialize favorites array in session if not exists
- * @param {Object} session - Express session object
- * @returns {Array} - Favorites array
- */
-function initializeFavorites(session) {
-  if (!session.favorites) {
-    session.favorites = [];
-  }
-  return session.favorites;
-}
-
-/**
- * Check if a book is already in favorites by ISBN-13
- * @param {Object} session - Express session object
- * @param {string} isbn13 - ISBN-13 of the book
- * @returns {boolean} - True if book is in favorites
- */
-function isFavorite(session, isbn13) {
-  initializeFavorites(session);
-  return session.favorites.some((fav) => fav.isbn === isbn13);
-}
-
-/**
- * Add a book to favorites
- * @param {Object} session - Express session object
- * @param {string} isbn13 - ISBN-13 of the book (must be ISBN-13 format)
- * @param {string} title - Title of the book
- * @returns {Object} - { success: boolean, message: string, favorite?: Object }
- */
-function addFavorite(session, isbn13, title) {
-  initializeFavorites(session);
-
-  // Validate ISBN-13 format
-  if (!isValidIsbn13(isbn13)) {
-    return {
-      success: false,
-      message: `Invalid ISBN-13 format: ${isbn13}. ISBN-13 must be exactly 13 digits.`,
-    };
-  }
-
-  // Check for duplicates
-  if (isFavorite(session, isbn13)) {
-    return {
-      success: false,
-      message: `"${title}" is already in your favorites list.`,
-      alreadyExists: true,
-    };
-  }
-
-  const favorite = {
-    isbn: isbn13,
-    title: title,
-    addedAt: new Date().toISOString(),
-  };
-
-  session.favorites.push(favorite);
-
-  return {
-    success: true,
-    message: `Added "${title}" to your favorites list.`,
-    favorite: favorite,
-  };
-}
-
-/**
- * Remove a book from favorites by ISBN-13
- * @param {Object} session - Express session object
- * @param {string} isbn13 - ISBN-13 of the book to remove
- * @returns {Object} - { success: boolean, message: string }
- */
-function removeFavorite(session, isbn13) {
-  initializeFavorites(session);
-
-  const index = session.favorites.findIndex((fav) => fav.isbn === isbn13);
-
-  if (index === -1) {
-    return {
-      success: false,
-      message: `No book with ISBN ${isbn13} found in your favorites list.`,
-    };
-  }
-
-  const removed = session.favorites.splice(index, 1)[0];
-
-  return {
-    success: true,
-    message: `Removed "${removed.title}" from your favorites list.`,
-    removedBook: removed,
-  };
-}
-
-/**
- * List all favorites
- * @param {Object} session - Express session object
- * @returns {Object} - { success: boolean, favorites: Array, count: number }
- */
-function listFavorites(session) {
-  initializeFavorites(session);
-
-  return {
-    success: true,
-    favorites: session.favorites,
-    count: session.favorites.length,
-    message:
-      session.favorites.length === 0
-        ? "Your favorites list is empty."
-        : `You have ${session.favorites.length} book${
-            session.favorites.length === 1 ? "" : "s"
-          } in your favorites list.`,
-  };
-}
-
-/**
- * Get count of favorites
- * @param {Object} session - Express session object
- * @returns {number} - Number of favorites
- */
-function getFavoriteCount(session) {
-  initializeFavorites(session);
-  return session.favorites.length;
-}
-
-/**
- * Clear all favorites
- * @param {Object} session - Express session object
- * @returns {Object} - { success: boolean, message: string }
- */
-function clearFavorites(session) {
-  const count = getFavoriteCount(session);
-  session.favorites = [];
-
-  return {
-    success: true,
-    message:
-      count === 0
-        ? "Your favorites list was already empty."
-        : `Cleared ${count} book${
-            count === 1 ? "" : "s"
-          } from your favorites list.`,
-  };
-}
+const User = require("../models/User");
 
 /**
  * Validate ISBN-13 format
@@ -187,8 +46,175 @@ function normalizeIsbn13(isbn) {
   return isbn.replace(/[-\s]/g, "");
 }
 
+/**
+ * Check if a book is already in favorites by ISBN-13
+ * @param {string} userId - User's MongoDB ID
+ * @param {string} isbn13 - ISBN-13 of the book
+ * @returns {Promise<boolean>} - True if book is in favorites
+ */
+async function isFavorite(userId, isbn13) {
+  const user = await User.findById(userId);
+  if (!user) {
+    return false;
+  }
+  return user.favorites.some((fav) => fav.isbn === isbn13);
+}
+
+/**
+ * Add a book to favorites
+ * @param {string} userId - User's MongoDB ID
+ * @param {string} isbn13 - ISBN-13 of the book (must be ISBN-13 format)
+ * @param {string} title - Title of the book
+ * @returns {Promise<Object>} - { success: boolean, message: string, favorite?: Object }
+ */
+async function addFavorite(userId, isbn13, title) {
+  // Validate ISBN-13 format
+  if (!isValidIsbn13(isbn13)) {
+    return {
+      success: false,
+      message: `Invalid ISBN-13 format: ${isbn13}. ISBN-13 must be exactly 13 digits.`,
+    };
+  }
+
+  const user = await User.findById(userId);
+  if (!user) {
+    return {
+      success: false,
+      message: "User not found.",
+    };
+  }
+
+  // Check for duplicates
+  if (user.favorites.some((fav) => fav.isbn === isbn13)) {
+    return {
+      success: false,
+      message: `"${title}" is already in your favorites list.`,
+      alreadyExists: true,
+    };
+  }
+
+  const favorite = {
+    isbn: isbn13,
+    title: title,
+    addedAt: new Date(),
+  };
+
+  user.favorites.push(favorite);
+  await user.save();
+
+  return {
+    success: true,
+    message: `Added "${title}" to your favorites list.`,
+    favorite: favorite,
+  };
+}
+
+/**
+ * Remove a book from favorites by ISBN-13
+ * @param {string} userId - User's MongoDB ID
+ * @param {string} isbn13 - ISBN-13 of the book to remove
+ * @returns {Promise<Object>} - { success: boolean, message: string }
+ */
+async function removeFavorite(userId, isbn13) {
+  const user = await User.findById(userId);
+  if (!user) {
+    return {
+      success: false,
+      message: "User not found.",
+    };
+  }
+
+  const index = user.favorites.findIndex((fav) => fav.isbn === isbn13);
+
+  if (index === -1) {
+    return {
+      success: false,
+      message: `No book with ISBN ${isbn13} found in your favorites list.`,
+    };
+  }
+
+  const removed = user.favorites.splice(index, 1)[0];
+  await user.save();
+
+  return {
+    success: true,
+    message: `Removed "${removed.title}" from your favorites list.`,
+    removedBook: removed,
+  };
+}
+
+/**
+ * List all favorites
+ * @param {string} userId - User's MongoDB ID
+ * @returns {Promise<Object>} - { success: boolean, favorites: Array, count: number }
+ */
+async function listFavorites(userId) {
+  const user = await User.findById(userId);
+  if (!user) {
+    return {
+      success: false,
+      favorites: [],
+      count: 0,
+      message: "User not found.",
+    };
+  }
+
+  return {
+    success: true,
+    favorites: user.favorites,
+    count: user.favorites.length,
+    message:
+      user.favorites.length === 0
+        ? "Your favorites list is empty."
+        : `You have ${user.favorites.length} book${
+            user.favorites.length === 1 ? "" : "s"
+          } in your favorites list.`,
+  };
+}
+
+/**
+ * Get count of favorites
+ * @param {string} userId - User's MongoDB ID
+ * @returns {Promise<number>} - Number of favorites
+ */
+async function getFavoriteCount(userId) {
+  const user = await User.findById(userId);
+  if (!user) {
+    return 0;
+  }
+  return user.favorites.length;
+}
+
+/**
+ * Clear all favorites
+ * @param {string} userId - User's MongoDB ID
+ * @returns {Promise<Object>} - { success: boolean, message: string }
+ */
+async function clearFavorites(userId) {
+  const user = await User.findById(userId);
+  if (!user) {
+    return {
+      success: false,
+      message: "User not found.",
+    };
+  }
+
+  const count = user.favorites.length;
+  user.favorites = [];
+  await user.save();
+
+  return {
+    success: true,
+    message:
+      count === 0
+        ? "Your favorites list was already empty."
+        : `Cleared ${count} book${
+            count === 1 ? "" : "s"
+          } from your favorites list.`,
+  };
+}
+
 module.exports = {
-  initializeFavorites,
   isFavorite,
   addFavorite,
   removeFavorite,

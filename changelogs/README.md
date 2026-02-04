@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Latest Versions
 
+- **[v0.6.1](v0.6.1.md)** - 2026-02-04
+
+  - Major Update: MongoDB Storage & User Authentication
+  - Passport.js integration for secure user login/signup
+  - Database-backed favorites with persistent storage
+  - BCrypt password hashing and session management
+  - User model with authentication middleware
+
 - **[v0.6.0](v0.6.0.md)** - 2026-02-03
 
   - Major Feature: Favorites List Management

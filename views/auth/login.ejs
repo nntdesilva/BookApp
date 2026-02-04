@@ -1,0 +1,51 @@
+<% layout('layouts/boilerplate') %>
+
+<div class="header">
+  <a href="/login" class="home-link">
+    <h1>Bibliotheque</h1>
+  </a>
+  <p class="subtitle">A Literary Collection</p>
+</div>
+
+<% if (typeof error !== 'undefined' && error) { %>
+<div class="alert alert-error"><%= error %></div>
+<% } %>
+
+<div class="auth-container">
+  <h2 class="auth-title">Welcome Back</h2>
+  <p class="auth-subtitle">Sign in to continue to your library</p>
+
+  <form action="/login" method="POST" class="auth-form">
+    <div class="form-group">
+      <label for="username">Username</label>
+      <input
+        type="text"
+        id="username"
+        name="username"
+        class="form-input"
+        placeholder="Enter your username"
+        required
+        autocomplete="username"
+      />
+    </div>
+
+    <div class="form-group">
+      <label for="password">Password</label>
+      <input
+        type="password"
+        id="password"
+        name="password"
+        class="form-input"
+        placeholder="Enter your password"
+        required
+        autocomplete="current-password"
+      />
+    </div>
+
+    <button type="submit" class="auth-button">Sign In</button>
+  </form>
+
+  <div class="auth-footer">
+    <p>Don't have an account? <a href="/signup">Create one</a></p>
+  </div>
+</div>

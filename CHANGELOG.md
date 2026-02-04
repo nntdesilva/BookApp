@@ -4,10 +4,14 @@ All notable changes to the BookApp project are documented in the [changelogs](./
 
 ## Quick Links
 
-- **[Latest Version: v0.6.0](./changelogs/v0.6.0.md)** - 2026-02-03
+- **[Latest Version: v0.6.1](./changelogs/v0.6.1.md)** - 2026-02-04
 - **[Version History](./changelogs/README.md)** - Browse all versions
 
 ## Recent Updates
+
+### [v0.6.1](./changelogs/v0.6.1.md) - 2026-02-04
+
+Major Update: MongoDB storage integration and user authentication with Passport.js for favorites list feature.
 
 ### [v0.6.0](./changelogs/v0.6.0.md) - 2026-02-03
 

@@ -1,0 +1,81 @@
+<% layout('layouts/boilerplate') %>
+
+<div class="header">
+  <a href="/login" class="home-link">
+    <h1>Bibliotheque</h1>
+  </a>
+  <p class="subtitle">A Literary Collection</p>
+</div>
+
+<% if (typeof error !== 'undefined' && error) { %>
+<div class="alert alert-error"><%= error %></div>
+<% } %>
+
+<div class="auth-container">
+  <h2 class="auth-title">Create Account</h2>
+  <p class="auth-subtitle">Join to start building your library</p>
+
+  <form action="/signup" method="POST" class="auth-form">
+    <div class="form-group">
+      <label for="username">Username</label>
+      <input
+        type="text"
+        id="username"
+        name="username"
+        class="form-input"
+        placeholder="Choose a username"
+        required
+        autocomplete="username"
+        minlength="3"
+        maxlength="30"
+      />
+    </div>
+
+    <div class="form-group">
+      <label for="email">Email</label>
+      <input
+        type="email"
+        id="email"
+        name="email"
+        class="form-input"
+        placeholder="Enter your email"
+        required
+        autocomplete="email"
+      />
+    </div>
+
+    <div class="form-group">
+      <label for="password">Password</label>
+      <input
+        type="password"
+        id="password"
+        name="password"
+        class="form-input"
+        placeholder="Create a password (min. 6 characters)"
+        required
+        autocomplete="new-password"
+        minlength="6"
+      />
+    </div>
+
+    <div class="form-group">
+      <label for="confirmPassword">Confirm Password</label>
+      <input
+        type="password"
+        id="confirmPassword"
+        name="confirmPassword"
+        class="form-input"
+        placeholder="Confirm your password"
+        required
+        autocomplete="new-password"
+        minlength="6"
+      />
+    </div>
+
+    <button type="submit" class="auth-button">Create Account</button>
+  </form>
+
+  <div class="auth-footer">
+    <p>Already have an account? <a href="/login">Sign in</a></p>
+  </div>
+</div>
