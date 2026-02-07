@@ -4,10 +4,14 @@ All notable changes to the BookApp project are documented in the [changelogs](./
 
 ## Quick Links
 
-- **[Latest Version: v0.6.1](./changelogs/v0.6.1.md)** - 2026-02-04
+- **[Latest Version: v0.7.0](./changelogs/v0.7.0.md)** - 2026-02-07
 - **[Version History](./changelogs/README.md)** - Browse all versions
 
 ## Recent Updates
+
+### [v0.7.0](./changelogs/v0.7.0.md) - 2026-02-07
+
+Major Feature: Word Count in Books using Project Gutenberg integration with AI-powered query interpretation and Gutendex API search.
 
 ### [v0.6.1](./changelogs/v0.6.1.md) - 2026-02-04
 

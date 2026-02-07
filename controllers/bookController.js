@@ -6,6 +6,7 @@ const aiService = require("../services/aiService");
 const tagService = require("../services/tagService");
 const conversationService = require("../services/conversationService");
 const favoriteService = require("../services/favoriteService");
+const gutenbergService = require("../services/gutenbergService");
 const validators = require("../utils/validators");
 const config = require("../config/appConfig");
 
@@ -23,14 +24,15 @@ module.exports.index = (req, res) => {
 };
 
 /**
- * Execute a favorite function and return the result
+ * Execute an AI-requested function and return the result
  * @param {string} userId - User's MongoDB ID
  * @param {string} functionName - Name of the function to execute
  * @param {Object} args - Function arguments
  * @returns {Promise<Object>} - Function execution result
  */
-async function executeFavoriteFunction(userId, functionName, args) {
+async function executeFunction(userId, functionName, args) {
   switch (functionName) {
+    // Favorites functions
     case "add_to_favorites": {
       // Normalize ISBN (remove hyphens/spaces)
       const normalizedIsbn = favoriteService.normalizeIsbn13(args.isbn13);
@@ -43,6 +45,15 @@ async function executeFavoriteFunction(userId, functionName, args) {
     case "list_favorites": {
       return favoriteService.listFavorites(userId);
     }
+
+    // Word search functions (Gutenberg)
+    case "resolve_book_for_search": {
+      return gutenbergService.resolveBookForSearch(args.bookTitle);
+    }
+    case "count_word_in_book": {
+      return gutenbergService.countWordInBook(args.bookTitle, args.searchTerm);
+    }
+
     default:
       return {
         success: false,
@@ -91,12 +102,12 @@ module.exports.chat = async (req, res) => {
 
     // Check if AI wants to execute functions
     if (result.requiresFunctionExecution && result.functionCalls) {
-      // Execute all requested functions (now async with MongoDB)
+      // Execute all requested functions (favorites, word search, etc.)
       const functionResults = await Promise.all(
         result.functionCalls.map(async (call) => ({
           id: call.id,
           name: call.name,
-          result: await executeFavoriteFunction(
+          result: await executeFunction(
             req.user._id,
             call.name,
             call.arguments

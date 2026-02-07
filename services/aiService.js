@@ -138,7 +138,51 @@ User: "What books are in my favorites?"
 Action: Call list_favorites function
 
 User: "Remove War and Peace from my favorites"
-Action: Call remove_from_favorites with the ISBN-13 of War and Peace`;
+Action: Call remove_from_favorites with the ISBN-13 of War and Peace
+
+## WORD COUNT / TEXT SEARCH FUNCTIONALITY
+
+You have access to functions to search for word occurrences in books. This uses Project Gutenberg, which only contains PUBLIC DOMAIN books (generally published before 1928).
+
+### CRITICAL RULES FOR WORD SEARCH:
+
+1. **Only works for public domain books** - Modern books like Harry Potter, Lord of the Rings, etc. are NOT available
+2. **Series handling**: If user asks about a series (e.g., "How many times does X appear in Sherlock Holmes?"), you MUST ask which specific book they want to search. Do NOT call any function until they specify a book.
+3. **Use the corrected book title**: If user misspells a title, correct it before calling the function
+4. **Tolerate search term variations**: The search handles case-insensitivity and multi-word phrases
+
+### TWO-STEP PROCESS:
+
+1. **First, call resolve_book_for_search** with the book title to check if it's available in Gutenberg
+2. **If available, call count_word_in_book** with the book title and search term
+
+### WHEN TO USE THESE FUNCTIONS:
+
+**resolve_book_for_search**: Use when:
+- User asks about word count/occurrences in a SPECIFIC book (not a series)
+- You need to verify if a book is available before searching
+
+**count_word_in_book**: Use when:
+- Book has been confirmed available (or you're confident it's a classic public domain book)
+- User has specified both the book AND the word/phrase to search for
+
+### WORD SEARCH EXAMPLES:
+
+User: "How many times does 'whale' appear in Moby Dick?"
+Action: Call count_word_in_book with bookTitle="Moby Dick" and searchTerm="whale"
+Response: "The word 'whale' appears [X] times in Moby Dick by Herman Melville."
+
+User: "How many times is 'elementary' mentioned in Sherlock Holmes?"
+Response: "Sherlock Holmes is a series with many books and short story collections. Which specific work would you like me to search? For example, 'A Study in Scarlet', 'The Hound of the Baskervilles', or 'The Adventures of Sherlock Holmes'?"
+
+User: "How often does 'love' appear in Pride and Prejudice?"
+Action: Call count_word_in_book with bookTitle="Pride and Prejudice" and searchTerm="love"
+
+User: "Count 'war' in Harry Potter"
+Response: "I'm sorry, Harry Potter books are not available for full-text search as they are not in the public domain. Project Gutenberg only contains books published before 1928. Would you like to search a classic book instead?"
+
+User: "how many times does 'thee' occur in romeo and juliet?"
+Action: Call count_word_in_book with bookTitle="Romeo and Juliet" and searchTerm="thee"`;
 
 /**
  * OpenAI function definitions for favorites management
@@ -201,6 +245,60 @@ const FAVORITE_FUNCTIONS = [
 ];
 
 /**
+ * OpenAI function definitions for word search in books (Gutenberg)
+ */
+const WORD_SEARCH_FUNCTIONS = [
+  {
+    type: "function",
+    function: {
+      name: "resolve_book_for_search",
+      description:
+        "Check if a book is available for full-text search in Project Gutenberg. Use this to verify availability before counting words. Only works for public domain books (published before 1928).",
+      parameters: {
+        type: "object",
+        properties: {
+          bookTitle: {
+            type: "string",
+            description:
+              "The title of the book to search for (use the corrected/proper title, not misspelled versions)",
+          },
+        },
+        required: ["bookTitle"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "count_word_in_book",
+      description:
+        "Count how many times a word or phrase appears in a book's full text. Only works for books available in Project Gutenberg (public domain). Handles case-insensitivity and multi-word phrases.",
+      parameters: {
+        type: "object",
+        properties: {
+          bookTitle: {
+            type: "string",
+            description:
+              "The title of the book to search in (use the corrected/proper title)",
+          },
+          searchTerm: {
+            type: "string",
+            description:
+              "The word or phrase to count occurrences of (can be multiple words, case-insensitive)",
+          },
+        },
+        required: ["bookTitle", "searchTerm"],
+      },
+    },
+  },
+];
+
+/**
+ * All available tools (combined)
+ */
+const ALL_TOOLS = [...FAVORITE_FUNCTIONS, ...WORD_SEARCH_FUNCTIONS];
+
+/**
  * Generate chat response using OpenAI with conversation history
  * Supports function calling for favorites management
  * @param {string} message - User's message
@@ -231,7 +329,7 @@ async function generateChatResponse(message, conversationHistory = []) {
       messages: messages,
       temperature: config.openai.temperature,
       max_tokens: config.openai.maxTokens,
-      tools: FAVORITE_FUNCTIONS,
+      tools: ALL_TOOLS,
       tool_choice: "auto",
     });
 

@@ -40,4 +40,10 @@ module.exports = {
   conversation: {
     maxHistoryMessages: parseInt(process.env.MAX_HISTORY_MESSAGES) || 15,
   },
+
+  // Project Gutenberg configuration
+  gutenberg: {
+    apiBaseUrl:
+      process.env.GUTENBERG_API_URL || "https://gutendex.com",
+  },
 };
