@@ -156,6 +156,8 @@ You have access to functions to search for word occurrences in books. This uses 
 1. **First, call resolve_book_for_search** with the book title to check if it's available in Gutenberg
 2. **If available, call count_word_in_book** with the book title and search term
 
+**IMPORTANT**: Execute these function calls silently in the background. Do NOT announce to the user what you're doing (e.g., don't say "I will check if the book is available" or "Now I will count the occurrences"). Simply perform the functions and return the final result.
+
 ### WHEN TO USE THESE FUNCTIONS:
 
 **resolve_book_for_search**: Use when:
@@ -388,7 +390,7 @@ async function generateChatResponse(message, conversationHistory = []) {
 async function continueAfterFunctionExecution(
   conversationHistory,
   assistantMessage,
-  functionResults
+  functionResults,
 ) {
   try {
     // Build messages with function results

@@ -9,6 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Latest Versions
 
+- **[v0.7.1](v0.7.1.md)** - 2026-02-08
+
+  - Bug Fix: Eliminated intermediary AI response step
+  - Silent function execution for word count queries
+  - Improved user experience with direct answers
+
+- **[v0.7.0](v0.7.0.md)** - 2026-02-07
+
+  - Major Feature: Word Count in Books
+  - Project Gutenberg integration for public domain books
+  - Gutendex API search with fuzzy matching
+  - AI-powered query interpretation
+
 - **[v0.6.1](v0.6.1.md)** - 2026-02-04
 
   - Major Update: MongoDB Storage & User Authentication

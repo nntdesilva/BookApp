@@ -185,7 +185,6 @@ function countWordOccurrences(text, searchTerm) {
  */
 async function resolveBookForSearch(bookTitle) {
   const searchResult = await searchBook(bookTitle);
-  console.log("searchResult", searchResult);
 
   if (!searchResult.found) {
     return {
