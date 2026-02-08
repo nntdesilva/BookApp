@@ -245,10 +245,80 @@ async function countWordInBook(bookTitle, searchTerm) {
   };
 }
 
+/**
+ * Extract all unique words from a text
+ * Lowercases, strips punctuation, splits by whitespace, and deduplicates
+ * Filters out very short words (1 char) and pure numbers
+ * @param {string} text - The full text to extract words from
+ * @returns {string[]} - Array of unique lowercase words
+ */
+function extractUniqueWords(text) {
+  // Lowercase and replace non-letter characters with spaces
+  const cleaned = text.toLowerCase().replace(/[^a-z'-]/g, " ");
+
+  // Split by whitespace and filter
+  const words = cleaned.split(/\s+/).filter((word) => {
+    // Remove leading/trailing punctuation from each word
+    const trimmed = word.replace(/^['-]+|['-]+$/g, "");
+    // Keep words that are at least 2 characters and not empty
+    return trimmed.length >= 2;
+  });
+
+  // Clean each word (strip leading/trailing punctuation) and deduplicate
+  const uniqueSet = new Set();
+  for (const word of words) {
+    const trimmed = word.replace(/^['-]+|['-]+$/g, "");
+    if (trimmed.length >= 2) {
+      uniqueSet.add(trimmed);
+    }
+  }
+
+  return Array.from(uniqueSet);
+}
+
+/**
+ * Get the full text of a book from Gutenberg by title
+ * Combines book resolution and text fetching into one call
+ * @param {string} bookTitle - The title of the book
+ * @returns {Promise<Object>} - { success, text?, bookTitle?, authors?, error? }
+ */
+async function getBookFullText(bookTitle) {
+  // Resolve the book first
+  const resolution = await resolveBookForSearch(bookTitle);
+
+  if (!resolution.available) {
+    return {
+      success: false,
+      error: resolution.reason,
+      searchedTitle: bookTitle,
+    };
+  }
+
+  // Fetch the full text
+  const textResult = await fetchBookText(resolution.textUrl);
+
+  if (!textResult.success) {
+    return {
+      success: false,
+      error: textResult.error,
+      bookTitle: resolution.title,
+    };
+  }
+
+  return {
+    success: true,
+    text: textResult.text,
+    bookTitle: stripSubtitle(resolution.title),
+    authors: resolution.authors,
+  };
+}
+
 module.exports = {
   searchBook,
   fetchBookText,
   countWordOccurrences,
   resolveBookForSearch,
   countWordInBook,
+  extractUniqueWords,
+  getBookFullText,
 };

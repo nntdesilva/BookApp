@@ -4,10 +4,14 @@ All notable changes to the BookApp project are documented in the [changelogs](./
 
 ## Quick Links
 
-- **[Latest Version: v0.7.1](./changelogs/v0.7.1.md)** - 2026-02-08
+- **[Latest Version: v0.7.2](./changelogs/v0.7.2.md)** - 2026-02-08
 - **[Version History](./changelogs/README.md)** - Browse all versions
 
 ## Recent Updates
+
+### [v0.7.2](./changelogs/v0.7.2.md) - 2026-02-08
+
+New Feature: Related Word Count functionality using semantic embeddings to find word occurrences in contextually related books.
 
 ### [v0.7.1](./changelogs/v0.7.1.md) - 2026-02-08
 

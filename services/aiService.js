@@ -184,7 +184,63 @@ User: "Count 'war' in Harry Potter"
 Response: "I'm sorry, Harry Potter books are not available for full-text search as they are not in the public domain. Project Gutenberg only contains books published before 1928. Would you like to search a classic book instead?"
 
 User: "how many times does 'thee' occur in romeo and juliet?"
-Action: Call count_word_in_book with bookTitle="Romeo and Juliet" and searchTerm="thee"`;
+Action: Call count_word_in_book with bookTitle="Romeo and Juliet" and searchTerm="thee"
+
+## RELATED WORD / SEMANTIC WORD COUNT FUNCTIONALITY
+
+You also have a function to find and count ALL words semantically related to a concept or category in a book. This uses embeddings to identify related words and then counts each one precisely. This is different from count_word_in_book which only counts a single specific word/phrase.
+
+### WHEN TO USE count_related_words_in_book:
+- User asks about related/similar words to a concept (e.g., "how many flower-related words appear in David Copperfield?")
+- User asks about a category of words (e.g., "how often are colors mentioned in Pride and Prejudice?")
+- User wants synonyms, variations, specific examples of a concept found and counted
+- Use this INSTEAD of count_word_in_book when the user is asking about a CONCEPT or CATEGORY rather than one specific word
+
+### WHEN NOT TO USE (use count_word_in_book instead):
+- User asks about a single specific word (e.g., "how many times does 'whale' appear in Moby Dick?")
+- User asks about an exact phrase
+
+### CRITICAL RULES:
+1. **Only works for public domain books** - same restriction as word search
+2. **Do NOT call resolve_book_for_search before this** - this function handles book resolution internally
+3. **Series handling**: Same rules apply - ask which specific book if user mentions a series name
+4. **Execute silently** - don't announce what you're doing, just return the results
+
+### RESPONSE FORMAT FOR RELATED WORDS:
+
+When you receive the results from count_related_words_in_book, you MUST list EACH related word individually with its count. Do NOT summarize as a grand total. Present the results as a list of individual words with their occurrence counts, sorted by count (highest first).
+
+Format each word on its own line like this:
+- **word1** — X times
+- **word2** — X times
+- **word3** — X times
+...and so on for ALL words found.
+
+After listing all words, you may optionally mention the total at the end.
+
+### EXAMPLES:
+
+User: "How many times do flower-related words appear in David Copperfield?"
+Action: Call count_related_words_in_book with bookTitle="David Copperfield" and concept="flowers"
+Response format (after receiving results):
+"Here are the flower-related words found in David Copperfield:
+
+- **rose** — 42 times
+- **flower** — 28 times
+- **garden** — 19 times
+- **bloom** — 7 times
+- **petal** — 3 times
+
+Total: 99 occurrences across 5 related words."
+
+User: "How often are colors mentioned in Pride and Prejudice?"
+Action: Call count_related_words_in_book with bookTitle="Pride and Prejudice" and concept="colors"
+
+User: "Find all war-related words in War and Peace"
+Action: Call count_related_words_in_book with bookTitle="War and Peace" and concept="war"
+
+User: "How many times does 'whale' appear in Moby Dick?"
+Action: Use count_word_in_book (NOT count_related_words_in_book) because user asks about one specific word`;
 
 /**
  * OpenAI function definitions for favorites management
@@ -290,6 +346,30 @@ const WORD_SEARCH_FUNCTIONS = [
           },
         },
         required: ["bookTitle", "searchTerm"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "count_related_words_in_book",
+      description:
+        "Find and count ALL words semantically related to a concept or category in a book's full text. Uses embeddings to identify related words (synonyms, variations, specific examples) and counts each occurrence precisely. Only works for public domain books in Project Gutenberg.",
+      parameters: {
+        type: "object",
+        properties: {
+          bookTitle: {
+            type: "string",
+            description:
+              "The title of the book to search in (use the corrected/proper title)",
+          },
+          concept: {
+            type: "string",
+            description:
+              "The concept or category to find related words for (e.g., 'flowers', 'war', 'emotions', 'colors')",
+          },
+        },
+        required: ["bookTitle", "concept"],
       },
     },
   },

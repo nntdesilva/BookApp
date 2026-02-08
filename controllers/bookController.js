@@ -7,6 +7,7 @@ const tagService = require("../services/tagService");
 const conversationService = require("../services/conversationService");
 const favoriteService = require("../services/favoriteService");
 const gutenbergService = require("../services/gutenbergService");
+const embeddingService = require("../services/embeddingService");
 const validators = require("../utils/validators");
 const config = require("../config/appConfig");
 
@@ -15,8 +16,8 @@ const config = require("../config/appConfig");
  * @route GET /
  */
 module.exports.index = (req, res) => {
-  // Initialize conversation history for new sessions
-  conversationService.initializeConversation(req.session);
+  // Clear conversation history on page load/refresh
+  conversationService.clearConversationHistory(req.session);
 
   res.render("books/index", {
     error: null,
@@ -52,6 +53,62 @@ async function executeFunction(userId, functionName, args) {
     }
     case "count_word_in_book": {
       return gutenbergService.countWordInBook(args.bookTitle, args.searchTerm);
+    }
+
+    // Semantic related word count (embeddings + regex)
+    case "count_related_words_in_book": {
+      // Fetch full book text from Gutenberg
+      const bookResult = await gutenbergService.getBookFullText(args.bookTitle);
+
+      if (!bookResult.success) {
+        return {
+          success: false,
+          error: bookResult.error,
+          searchedTitle: args.bookTitle,
+        };
+      }
+
+      // Extract all unique words from the book
+      const uniqueWords = gutenbergService.extractUniqueWords(bookResult.text);
+
+      // Use embeddings to find words related to the concept
+      const relatedWords = await embeddingService.findRelatedWords(
+        args.concept,
+        uniqueWords,
+      );
+
+      // Count each related word using regex
+      const wordCounts = relatedWords.map((entry) => {
+        const countResult = gutenbergService.countWordOccurrences(
+          bookResult.text,
+          entry.word,
+        );
+        return {
+          word: entry.word,
+          count: countResult.count,
+          similarity: entry.similarity,
+        };
+      });
+
+      // Filter out words with 0 occurrences and sort by count descending
+      const filteredCounts = wordCounts
+        .filter((w) => w.count > 0)
+        .sort((a, b) => b.count - a.count);
+
+      const totalOccurrences = filteredCounts.reduce(
+        (sum, w) => sum + w.count,
+        0,
+      );
+
+      return {
+        success: true,
+        bookTitle: bookResult.bookTitle,
+        authors: bookResult.authors,
+        concept: args.concept,
+        relatedWords: filteredCounts,
+        totalOccurrences: totalOccurrences,
+        uniqueWordsAnalyzed: uniqueWords.length,
+      };
     }
 
     default:
@@ -110,16 +167,16 @@ module.exports.chat = async (req, res) => {
           result: await executeFunction(
             req.user._id,
             call.name,
-            call.arguments
+            call.arguments,
           ),
-        }))
+        })),
       );
 
       // Continue conversation with function results
       result = await aiService.continueAfterFunctionExecution(
         result.conversationHistory,
         result.assistantMessage,
-        functionResults
+        functionResults,
       );
 
       if (result.error) {
@@ -135,13 +192,13 @@ module.exports.chat = async (req, res) => {
     // Update conversation history in session
     conversationService.updateConversationHistory(
       req.session,
-      result.conversationHistory
+      result.conversationHistory,
     );
 
     // Trim history to prevent token limit issues
     conversationService.trimConversationHistory(
       req.session,
-      config.conversation.maxHistoryMessages
+      config.conversation.maxHistoryMessages,
     );
 
     res.json({

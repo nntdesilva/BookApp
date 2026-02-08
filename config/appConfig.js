@@ -41,9 +41,16 @@ module.exports = {
     maxHistoryMessages: parseInt(process.env.MAX_HISTORY_MESSAGES) || 15,
   },
 
+  // Embedding configuration (for semantic word search)
+  embedding: {
+    model: process.env.EMBEDDING_MODEL || "text-embedding-3-large",
+    similarityThreshold:
+      parseFloat(process.env.EMBEDDING_SIMILARITY_THRESHOLD) || 0.55,
+    batchSize: parseInt(process.env.EMBEDDING_BATCH_SIZE) || 2048,
+  },
+
   // Project Gutenberg configuration
   gutenberg: {
-    apiBaseUrl:
-      process.env.GUTENBERG_API_URL || "https://gutendex.com",
+    apiBaseUrl: process.env.GUTENBERG_API_URL || "https://gutendex.com",
   },
 };
