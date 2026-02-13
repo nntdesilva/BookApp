@@ -4,10 +4,14 @@ All notable changes to the BookApp project are documented in the [changelogs](./
 
 ## Quick Links
 
-- **[Latest Version: v0.7.2](./changelogs/v0.7.2.md)** - 2026-02-08
+- **[Latest Version: v0.8.0](./changelogs/v0.8.0.md)** - 2026-02-13
 - **[Version History](./changelogs/README.md)** - Browse all versions
 
 ## Recent Updates
+
+### [v0.8.0](./changelogs/v0.8.0.md) - 2026-02-13
+
+Major Feature: Arbitrary Book Statistics using OpenAI Assistants API with Code Interpreter. Users can now ask any statistical question about a book's text, and the AI will write and execute Python code to provide precise, exact answers.
 
 ### [v0.7.2](./changelogs/v0.7.2.md) - 2026-02-08
 

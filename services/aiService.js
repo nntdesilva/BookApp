@@ -240,7 +240,53 @@ User: "Find all war-related words in War and Peace"
 Action: Call count_related_words_in_book with bookTitle="War and Peace" and concept="war"
 
 User: "How many times does 'whale' appear in Moby Dick?"
-Action: Use count_word_in_book (NOT count_related_words_in_book) because user asks about one specific word`;
+Action: Use count_word_in_book (NOT count_related_words_in_book) because user asks about one specific word
+
+## ARBITRARY TEXT ANALYSIS / BOOK STATISTICS (Code Interpreter)
+
+You have access to a powerful function that can answer ANY statistical or analytical question about a book's full text by writing and executing Python code. This is the most versatile analysis tool available.
+
+### WHEN TO USE analyze_book_statistics:
+- User asks about sentence-level analysis (e.g., "how many sentences have more than 10 words?")
+- User asks about co-occurrence patterns (e.g., "how many times do 'banana' and 'flower' appear in the same sentence?")
+- User asks about text structure (e.g., "what is the average paragraph length?", "how many chapters are there?")
+- User asks about distributions (e.g., "what are the 10 most common words?", "what percentage of sentences are questions?")
+- User asks about readability metrics (e.g., "what is the average sentence length?")
+- User asks about patterns, correlations, or ANY complex analysis of the text
+- Essentially: use this for ANY question about a book's text that cannot be answered by simple word counting or semantic word search
+- This is the catch-all tool — if the other text tools don't fit the question, use this one
+
+### WHEN NOT TO USE (use the simpler tools instead):
+- Simple "how many times does X appear" → use count_word_in_book
+- "Find words related to X" or "how many color words" → use count_related_words_in_book
+- These simpler tools are faster, so prefer them when they fit
+
+### CRITICAL RULES:
+1. **Only works for public domain books** - same restriction as other text tools (Project Gutenberg)
+2. **Series handling**: Same rules apply - ask which specific book if user mentions a series name
+3. **Execute silently** - don't announce what you're doing. Don't say "I'll use code interpreter" or "Let me analyze the text". Just call the function and present the result naturally.
+4. **Pass the user's question clearly** - the question parameter should capture exactly what the user wants to know
+5. **Present results naturally** - when you receive the answer from the tool, present it conversationally. The answer from the tool will already be precise and computed from actual code execution.
+
+### EXAMPLES:
+
+User: "How many times do 'war' and 'peace' appear in the same sentence in War and Peace?"
+Action: Call analyze_book_statistics with bookTitle="War and Peace" and question="How many sentences contain both the word 'war' and the word 'peace'?"
+
+User: "What is the longest sentence in Pride and Prejudice?"
+Action: Call analyze_book_statistics with bookTitle="Pride and Prejudice" and question="What is the longest sentence in the book? Return the sentence and its word count."
+
+User: "How many sentences have ten or more words in Moby Dick?"
+Action: Call analyze_book_statistics with bookTitle="Moby Dick" and question="How many sentences have ten or more words?"
+
+User: "What are the 10 most frequently used words in Frankenstein?"
+Action: Call analyze_book_statistics with bookTitle="Frankenstein" and question="What are the 10 most frequently used words (excluding common stop words like the, a, is, etc.)?"
+
+User: "What percentage of sentences in Dracula are questions?"
+Action: Call analyze_book_statistics with bookTitle="Dracula" and question="What percentage of sentences end with a question mark?"
+
+User: "How many times does 'love' appear in Pride and Prejudice?"
+Action: Use count_word_in_book (NOT analyze_book_statistics) because this is a simple word count`;
 
 /**
  * OpenAI function definitions for favorites management
@@ -376,9 +422,43 @@ const WORD_SEARCH_FUNCTIONS = [
 ];
 
 /**
+ * OpenAI function definitions for arbitrary text analysis (Assistants API + Code Interpreter)
+ */
+const TEXT_ANALYSIS_FUNCTIONS = [
+  {
+    type: "function",
+    function: {
+      name: "analyze_book_statistics",
+      description:
+        "Analyze any arbitrary statistic, pattern, or structural property of a book's full text using code execution. Use this for complex questions that go beyond simple word counting — such as sentence analysis, co-occurrence patterns, word distributions, chapter analysis, readability metrics, or ANY computable statistic about the text. Only works for public domain books available in Project Gutenberg.",
+      parameters: {
+        type: "object",
+        properties: {
+          bookTitle: {
+            type: "string",
+            description:
+              "The title of the book to analyze (use the corrected/proper title)",
+          },
+          question: {
+            type: "string",
+            description:
+              "The user's question or statistic they want to know about the book's text. Be specific and include all relevant details from the user's request.",
+          },
+        },
+        required: ["bookTitle", "question"],
+      },
+    },
+  },
+];
+
+/**
  * All available tools (combined)
  */
-const ALL_TOOLS = [...FAVORITE_FUNCTIONS, ...WORD_SEARCH_FUNCTIONS];
+const ALL_TOOLS = [
+  ...FAVORITE_FUNCTIONS,
+  ...WORD_SEARCH_FUNCTIONS,
+  ...TEXT_ANALYSIS_FUNCTIONS,
+];
 
 /**
  * Generate chat response using OpenAI with conversation history

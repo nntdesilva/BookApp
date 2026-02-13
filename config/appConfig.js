@@ -49,6 +49,13 @@ module.exports = {
     batchSize: parseInt(process.env.EMBEDDING_BATCH_SIZE) || 2048,
   },
 
+  // Assistant configuration (for Code Interpreter text analysis)
+  assistant: {
+    model: process.env.ASSISTANT_MODEL || "gpt-4.1",
+    pollIntervalMs: parseInt(process.env.ASSISTANT_POLL_INTERVAL_MS) || 2000,
+    maxPollAttempts: parseInt(process.env.ASSISTANT_MAX_POLL_ATTEMPTS) || 60,
+  },
+
   // Project Gutenberg configuration
   gutenberg: {
     apiBaseUrl: process.env.GUTENBERG_API_URL || "https://gutendex.com",

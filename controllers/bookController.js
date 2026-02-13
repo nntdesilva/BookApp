@@ -8,6 +8,7 @@ const conversationService = require("../services/conversationService");
 const favoriteService = require("../services/favoriteService");
 const gutenbergService = require("../services/gutenbergService");
 const embeddingService = require("../services/embeddingService");
+const assistantService = require("../services/assistantService");
 const validators = require("../utils/validators");
 const config = require("../config/appConfig");
 
@@ -109,6 +110,14 @@ async function executeFunction(userId, functionName, args) {
         totalOccurrences: totalOccurrences,
         uniqueWordsAnalyzed: uniqueWords.length,
       };
+    }
+
+    // Arbitrary text analysis (Assistants API + Code Interpreter)
+    case "analyze_book_statistics": {
+      return assistantService.analyzeBookStatistics(
+        args.bookTitle,
+        args.question,
+      );
     }
 
     default:
