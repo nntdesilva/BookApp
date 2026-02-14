@@ -4,10 +4,14 @@ All notable changes to the BookApp project are documented in the [changelogs](./
 
 ## Quick Links
 
-- **[Latest Version: v0.8.0](./changelogs/v0.8.0.md)** - 2026-02-13
+- **[Latest Version: v0.9.0](./changelogs/v0.9.0.md)** - 2026-02-14
 - **[Version History](./changelogs/README.md)** - Browse all versions
 
 ## Recent Updates
+
+### [v0.9.0](./changelogs/v0.9.0.md) - 2026-02-14
+
+Major Feature: Interactive Data Visualization using Plotly.js. Book analysis results can now be rendered as interactive charts (bar, pie, line, scatter, heatmap, sankey, histogram, treemap) with smart session-based caching that allows switching between chart types without recomputing data.
 
 ### [v0.8.0](./changelogs/v0.8.0.md) - 2026-02-13
 

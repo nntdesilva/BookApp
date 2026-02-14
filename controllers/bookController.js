@@ -17,8 +17,9 @@ const config = require("../config/appConfig");
  * @route GET /
  */
 module.exports.index = (req, res) => {
-  // Clear conversation history on page load/refresh
+  // Clear conversation history and visualization cache on page load/refresh
   conversationService.clearConversationHistory(req.session);
+  delete req.session.vizDataCache;
 
   res.render("books/index", {
     error: null,
@@ -32,7 +33,7 @@ module.exports.index = (req, res) => {
  * @param {Object} args - Function arguments
  * @returns {Promise<Object>} - Function execution result
  */
-async function executeFunction(userId, functionName, args) {
+async function executeFunction(userId, functionName, args, session) {
   switch (functionName) {
     // Favorites functions
     case "add_to_favorites": {
@@ -120,6 +121,50 @@ async function executeFunction(userId, functionName, args) {
       );
     }
 
+    // Interactive visualization: compute data ONCE, then render as chart
+    case "generate_visualization": {
+      // Build a cache key from the book title + analysis question.
+      // This ensures that switching chart types for the same question
+      // reuses the identical computed data instead of recomputing
+      // (which could produce non-deterministic results).
+      const cacheKey = `${(args.bookTitle || "").toLowerCase().trim()}::${(args.question || "").toLowerCase().trim()}`;
+
+      let analysisResult;
+
+      // Check the session-level cache first
+      if (
+        session &&
+        session.vizDataCache &&
+        session.vizDataCache.key === cacheKey
+      ) {
+        analysisResult = session.vizDataCache.data;
+      } else {
+        // Cache miss — compute the data via analyzeBookStatistics
+        analysisResult = await assistantService.analyzeBookStatistics(
+          args.bookTitle,
+          args.question,
+        );
+
+        // Cache for subsequent requests with different chart types
+        if (analysisResult.success && session) {
+          session.vizDataCache = { key: cacheKey, data: analysisResult };
+        }
+      }
+
+      if (!analysisResult.success) {
+        return analysisResult;
+      }
+
+      // Now generate the chart HTML from the pre-computed data.
+      // generateVisualization does NOT compute anything — it only renders.
+      return assistantService.generateVisualization(
+        analysisResult.answer,
+        analysisResult.bookTitle,
+        analysisResult.authors,
+        args.chartType,
+      );
+    }
+
     default:
       return {
         success: false,
@@ -166,6 +211,9 @@ module.exports.chat = async (req, res) => {
       });
     }
 
+    // Track visualization HTML extracted from function results
+    let visualizationHtml = null;
+
     // Check if AI wants to execute functions
     if (result.requiresFunctionExecution && result.functionCalls) {
       // Execute all requested functions (favorites, word search, etc.)
@@ -177,15 +225,39 @@ module.exports.chat = async (req, res) => {
             req.user._id,
             call.name,
             call.arguments,
+            req.session,
           ),
         })),
       );
+
+      // Extract visualization HTML before passing results to AI
+      // (avoids sending huge HTML strings to the model as tool results)
+      const sanitizedResults = functionResults.map((fr) => {
+        if (
+          fr.name === "generate_visualization" &&
+          fr.result.success &&
+          fr.result.html
+        ) {
+          visualizationHtml = fr.result.html;
+          return {
+            ...fr,
+            result: {
+              success: true,
+              bookTitle: fr.result.bookTitle,
+              authors: fr.result.authors,
+              message:
+                "Interactive visualization has been generated and will be displayed to the user.",
+            },
+          };
+        }
+        return fr;
+      });
 
       // Continue conversation with function results
       result = await aiService.continueAfterFunctionExecution(
         result.conversationHistory,
         result.assistantMessage,
-        functionResults,
+        sanitizedResults,
       );
 
       if (result.error) {
@@ -210,10 +282,17 @@ module.exports.chat = async (req, res) => {
       config.conversation.maxHistoryMessages,
     );
 
-    res.json({
+    // Build response payload, including visualization if generated
+    const responsePayload = {
       success: true,
       response: htmlResponse,
-    });
+    };
+
+    if (visualizationHtml) {
+      responsePayload.visualization = visualizationHtml;
+    }
+
+    res.json(responsePayload);
   } catch (error) {
     console.error("Error in chat controller:", error);
     res.status(500).json({
@@ -230,6 +309,7 @@ module.exports.chat = async (req, res) => {
 module.exports.clearHistory = (req, res) => {
   try {
     conversationService.clearConversationHistory(req.session);
+    delete req.session.vizDataCache;
 
     res.json({
       success: true,

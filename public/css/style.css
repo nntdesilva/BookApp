@@ -527,6 +527,21 @@ body {
   }
 }
 
+/* Visualization iframe styles */
+.visualization-content {
+  max-width: 100% !important;
+  width: 100%;
+  padding: 8px !important;
+}
+
+.visualization-iframe {
+  width: 100%;
+  height: 450px;
+  border: 1px solid #d4c5a9;
+  background: #ffffff;
+  display: block;
+}
+
 /* Responsive Design */
 @media (max-width: 768px) {
   .container {
@@ -616,6 +631,10 @@ body {
 
   .chat-send-button {
     padding: 12px 20px;
+  }
+
+  .visualization-iframe {
+    height: 350px;
   }
 }
 

@@ -81,6 +81,9 @@
 
             if (data.success) {
                 appendMessage(data.response, 'assistant', true);
+                if (data.visualization) {
+                    appendVisualization(data.visualization);
+                }
             } else {
                 appendMessage(data.error || 'An error occurred. Please try again.', 'error');
             }
@@ -109,6 +112,25 @@
         
         messageDiv.appendChild(contentDiv);
         chatMessages.appendChild(messageDiv);
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+    }
+
+    function appendVisualization(html) {
+        const vizDiv = document.createElement('div');
+        vizDiv.className = 'chat-message chat-message-assistant';
+
+        const contentDiv = document.createElement('div');
+        contentDiv.className = 'chat-message-content visualization-content';
+
+        const iframe = document.createElement('iframe');
+        iframe.className = 'visualization-iframe';
+        iframe.sandbox = 'allow-scripts';
+        iframe.srcdoc = html;
+        iframe.title = 'Data Visualization';
+
+        contentDiv.appendChild(iframe);
+        vizDiv.appendChild(contentDiv);
+        chatMessages.appendChild(vizDiv);
         chatMessages.scrollTop = chatMessages.scrollHeight;
     }
 

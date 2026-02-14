@@ -267,6 +267,7 @@ You have access to a powerful function that can answer ANY statistical or analyt
 3. **Execute silently** - don't announce what you're doing. Don't say "I'll use code interpreter" or "Let me analyze the text". Just call the function and present the result naturally.
 4. **Pass the user's question clearly** - the question parameter should capture exactly what the user wants to know
 5. **Present results naturally** - when you receive the answer from the tool, present it conversationally. The answer from the tool will already be precise and computed from actual code execution.
+6. **Stop words consistency** - When the question involves word frequencies (e.g., "most common words", "top N words"), ALWAYS include the phrase "(excluding stop words)" in the question parameter. Use this exact phrase — never paraphrase it as "excluding common words like the, a, is, etc." or any other variation.
 
 ### EXAMPLES:
 
@@ -280,13 +281,62 @@ User: "How many sentences have ten or more words in Moby Dick?"
 Action: Call analyze_book_statistics with bookTitle="Moby Dick" and question="How many sentences have ten or more words?"
 
 User: "What are the 10 most frequently used words in Frankenstein?"
-Action: Call analyze_book_statistics with bookTitle="Frankenstein" and question="What are the 10 most frequently used words (excluding common stop words like the, a, is, etc.)?"
+Action: Call analyze_book_statistics with bookTitle="Frankenstein" and question="What are the 10 most frequently used words (excluding stop words)?"
 
 User: "What percentage of sentences in Dracula are questions?"
 Action: Call analyze_book_statistics with bookTitle="Dracula" and question="What percentage of sentences end with a question mark?"
 
 User: "How many times does 'love' appear in Pride and Prejudice?"
-Action: Use count_word_in_book (NOT analyze_book_statistics) because this is a simple word count`;
+Action: Use count_word_in_book (NOT analyze_book_statistics) because this is a simple word count
+
+## INTERACTIVE VISUALIZATION (Dynamic Charts & Graphs)
+
+You have access to a function that generates interactive visualizations (charts, graphs, diagrams) from book text analysis. This creates a rich, interactive chart that will be displayed directly in the chat UI.
+
+### WHEN TO USE generate_visualization:
+- User explicitly asks to "visualize", "chart", "graph", "plot", or create a "diagram" of data
+- User says "visualize it", "show me a chart", "make it a bar chart", "display as a pie chart", etc.
+- User asks for any visual/graphical representation of book data
+- User says "can you make that into a graph?" or similar
+
+### WHEN NOT TO USE:
+- User asks a text question without requesting a visual — just answer in text
+- User says "show me" or "list" in a text context — use text response
+- Simple yes/no questions about books
+
+### CRITICAL RULES:
+1. **Only works for public domain books** (Project Gutenberg) — same restriction as other text tools
+2. **Series handling**: Same rules — ask which specific book if user mentions a series name
+3. **Infer from context**: If the user says "visualize it" after a previous analysis, use the same book and topic from the conversation context. Reconstruct the appropriate question and book title.
+4. **Chart type**: Use whatever the user asks for. If they don't specify, choose the most appropriate type:
+   - Comparisons / rankings → bar chart
+   - Proportions / percentages → pie chart
+   - Trends over sequences → line chart
+   - Relationships between variables → scatter plot
+   - Flows / connections → sankey diagram
+   - Distributions → histogram
+5. **Execute silently** — don't announce what you're doing
+6. **After visualization**: Provide a brief text description of what the chart shows
+7. **Stop words consistency** - When the question involves word frequencies (e.g., "most common words", "top N words"), ALWAYS include the phrase "(excluding stop words)" in the question parameter. Use this exact phrase — never paraphrase it differently.
+8. **Deterministic question phrasing** - When calling generate_visualization for the SAME user question (regardless of chart type), the question parameter MUST be identical. The chart type only affects the chartType parameter, never the question. For example, a bar chart and pie chart of "top 10 most common words" must both use the exact same question string.
+
+### EXAMPLES:
+
+User: "How many times does 'richard' appear in sentences in Bleak House?"
+Action: Use analyze_book_statistics — just return text answer (no visualization requested)
+
+User: "Visualize the top 10 most common words in Bleak House as a bar chart"
+Action: Call generate_visualization with bookTitle="Bleak House", question="What are the top 10 most common words (excluding stop words)?", chartType="bar chart"
+NOTE: When user asks for "most common words" or "top N words" WITHOUT explicitly saying "excluding stop words", you MUST still add "(excluding stop words)" to the question parameter because word frequency analysis should ALWAYS exclude stop words unless the user specifically requests to include them.
+
+User: (after previous analysis) "Can you visualize that?"
+Action: Call generate_visualization using the same book and reconstructed question from conversation context, with the most appropriate chartType
+
+User: "Show me a pie chart of sentence types in Pride and Prejudice"
+Action: Call generate_visualization with bookTitle="Pride and Prejudice", question="What is the distribution of sentence types (statements ending with period, questions ending with ?, exclamations ending with !)?", chartType="pie chart"
+
+User: "Create a sankey diagram of character mentions flowing through chapters in Moby Dick"
+Action: Call generate_visualization with appropriate parameters, chartType="sankey diagram"`;
 
 /**
  * OpenAI function definitions for favorites management
@@ -452,12 +502,48 @@ const TEXT_ANALYSIS_FUNCTIONS = [
 ];
 
 /**
+ * OpenAI function definitions for interactive visualization
+ */
+const VISUALIZATION_FUNCTIONS = [
+  {
+    type: "function",
+    function: {
+      name: "generate_visualization",
+      description:
+        "Generate an interactive visualization (chart, graph, diagram) of book text analysis results. Use this when the user explicitly asks to visualize, chart, graph, or plot data about a book's text. Creates a rich interactive chart displayed directly in the UI. Only works for public domain books available in Project Gutenberg.",
+      parameters: {
+        type: "object",
+        properties: {
+          bookTitle: {
+            type: "string",
+            description:
+              "The title of the book to analyze and visualize (use the corrected/proper title)",
+          },
+          question: {
+            type: "string",
+            description:
+              "What data to compute and visualize from the book's text (e.g., 'top 10 most common words excluding stop words', 'sentence length distribution', 'distribution of question vs statement sentences')",
+          },
+          chartType: {
+            type: "string",
+            description:
+              "The type of chart to create: 'bar chart', 'pie chart', 'line chart', 'scatter plot', 'heatmap', 'sankey diagram', 'histogram', 'treemap', or any other valid chart type. If user doesn't specify, choose the most appropriate type for the data.",
+          },
+        },
+        required: ["bookTitle", "question", "chartType"],
+      },
+    },
+  },
+];
+
+/**
  * All available tools (combined)
  */
 const ALL_TOOLS = [
   ...FAVORITE_FUNCTIONS,
   ...WORD_SEARCH_FUNCTIONS,
   ...TEXT_ANALYSIS_FUNCTIONS,
+  ...VISUALIZATION_FUNCTIONS,
 ];
 
 /**
