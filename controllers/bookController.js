@@ -48,6 +48,9 @@ async function executeFunction(userId, functionName, args, session) {
     case "list_favorites": {
       return favoriteService.listFavorites(userId);
     }
+    case "remove_all_favorites": {
+      return favoriteService.clearFavorites(userId);
+    }
 
     // Word search functions (Gutenberg)
     case "resolve_book_for_search": {

@@ -4,10 +4,14 @@ All notable changes to the BookApp project are documented in the [changelogs](./
 
 ## Quick Links
 
-- **[Latest Version: v0.9.2](./changelogs/v0.9.2.md)** - 2026-02-17
+- **[Latest Version: v0.9.3](./changelogs/v0.9.3.md)** - 2026-02-17
 - **[Version History](./changelogs/README.md)** - Browse all versions
 
 ## Recent Updates
+
+### [v0.9.3](./changelogs/v0.9.3.md) - 2026-02-17
+
+New Feature: Added AI tool calling support for clearing the entire favourites list in one command. Users can now say "remove all books from my favourites" in chat to clear their list.
 
 ### [v0.9.2](./changelogs/v0.9.2.md) - 2026-02-17
 

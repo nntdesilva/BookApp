@@ -108,6 +108,16 @@ const FAVORITE_FUNCTIONS = [
       required: [],
     },
   },
+  {
+    name: "remove_all_favorites",
+    description:
+      "Remove ALL books from the user's favorites list at once. Use when the user asks to clear, remove all, or empty their entire favorites list.",
+    input_schema: {
+      type: "object",
+      properties: {},
+      required: [],
+    },
+  },
 ];
 
 /**
