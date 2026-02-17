@@ -9,6 +9,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Latest Versions
 
+- **[v0.9.1](v0.9.1.md)** - 2026-02-17
+
+  - Migration: Claude models for all AI features (except embeddings)
+  - `aiService.js` and `assistantService.js` fully rewritten using `@anthropic-ai/sdk`
+  - OpenAI retained only for `text-embedding-3-large` semantic word search
+  - Claude Code Execution beta replaces OpenAI Assistants API
+
+- **[v0.9.0](v0.9.0.md)** - 2026-02-14
+
+  - Major Feature: Interactive Data Visualization using Plotly.js
+  - Interactive charts: bar, pie, line, scatter, heatmap, sankey, histogram, treemap
+  - Smart session-based caching for chart type switching
+
+- **[v0.8.0](v0.8.0.md)** - 2026-02-13
+
+  - Major Feature: Arbitrary Book Statistics via Code Interpreter
+  - OpenAI Assistants API integration for Python code execution
+  - Precise text analysis: sentences, word distributions, co-occurrence, readability
+
 - **[v0.7.1](v0.7.1.md)** - 2026-02-08
 
   - Bug Fix: Eliminated intermediary AI response step

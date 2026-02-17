@@ -4,10 +4,14 @@ All notable changes to the BookApp project are documented in the [changelogs](./
 
 ## Quick Links
 
-- **[Latest Version: v0.9.0](./changelogs/v0.9.0.md)** - 2026-02-14
+- **[Latest Version: v0.9.1](./changelogs/v0.9.1.md)** - 2026-02-17
 - **[Version History](./changelogs/README.md)** - Browse all versions
 
 ## Recent Updates
+
+### [v0.9.1](./changelogs/v0.9.1.md) - 2026-02-17
+
+Migration: Switched primary AI provider from OpenAI GPT to Claude (Anthropic) across all AI-powered features. OpenAI is retained exclusively for semantic word search embeddings (`text-embedding-3-large`). Includes full rewrite of `aiService.js` and `analysisService.js` (formerly `assistantService.js`) to use the Anthropic SDK and Claude's Code Execution beta tool.
 
 ### [v0.9.0](./changelogs/v0.9.0.md) - 2026-02-14
 

@@ -1,13 +1,14 @@
 /**
  * Embedding Service - Handles OpenAI embedding operations for semantic word search
- * Uses cosine similarity to find words related to a given concept
+ * Uses OpenAI's text-embedding API exclusively for generating word embeddings.
+ * All other AI features use Claude (Anthropic).
  */
 
 const OpenAI = require("openai");
 const config = require("../config/appConfig");
 
 const openai = new OpenAI({
-  apiKey: config.openai.apiKey,
+  apiKey: config.embedding.apiKey,
 });
 
 /**
@@ -107,7 +108,5 @@ async function findRelatedWords(concept, uniqueWords, threshold) {
 }
 
 module.exports = {
-  generateEmbeddings,
-  cosineSimilarity,
   findRelatedWords,
 };

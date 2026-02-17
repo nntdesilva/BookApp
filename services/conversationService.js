@@ -17,7 +17,7 @@ function initializeConversation(session) {
 /**
  * Get conversation history from session
  * @param {Object} session - Express session object
- * @returns {Array} - Conversation history in OpenAI format
+ * @returns {Array} - Conversation history
  */
 function getConversationHistory(session) {
   return session.conversationHistory || [];

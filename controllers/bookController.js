@@ -8,7 +8,7 @@ const conversationService = require("../services/conversationService");
 const favoriteService = require("../services/favoriteService");
 const gutenbergService = require("../services/gutenbergService");
 const embeddingService = require("../services/embeddingService");
-const assistantService = require("../services/assistantService");
+const analysisService = require("../services/analysisService");
 const validators = require("../utils/validators");
 const config = require("../config/appConfig");
 
@@ -113,9 +113,9 @@ async function executeFunction(userId, functionName, args, session) {
       };
     }
 
-    // Arbitrary text analysis (Assistants API + Code Interpreter)
+    // Arbitrary text analysis (Claude Code Execution)
     case "analyze_book_statistics": {
-      return assistantService.analyzeBookStatistics(
+      return analysisService.analyzeBookStatistics(
         args.bookTitle,
         args.question,
       );
@@ -140,7 +140,7 @@ async function executeFunction(userId, functionName, args, session) {
         analysisResult = session.vizDataCache.data;
       } else {
         // Cache miss — compute the data via analyzeBookStatistics
-        analysisResult = await assistantService.analyzeBookStatistics(
+        analysisResult = await analysisService.analyzeBookStatistics(
           args.bookTitle,
           args.question,
         );
@@ -157,7 +157,7 @@ async function executeFunction(userId, functionName, args, session) {
 
       // Now generate the chart HTML from the pre-computed data.
       // generateVisualization does NOT compute anything — it only renders.
-      return assistantService.generateVisualization(
+      return analysisService.generateVisualization(
         analysisResult.answer,
         analysisResult.bookTitle,
         analysisResult.authors,
@@ -190,9 +190,9 @@ module.exports.chat = async (req, res) => {
     }
 
     // Check API configuration
-    if (!config.openai.apiKey) {
+    if (!config.claude.apiKey) {
       return res.status(500).json({
-        error: "OpenAI API key is not configured.",
+        error: "Claude API key is not configured.",
       });
     }
 
@@ -214,8 +214,18 @@ module.exports.chat = async (req, res) => {
     // Track visualization HTML extracted from function results
     let visualizationHtml = null;
 
-    // Check if AI wants to execute functions
-    if (result.requiresFunctionExecution && result.functionCalls) {
+    // Loop to handle multiple rounds of tool calls
+    // Claude may call tools sequentially (e.g., resolve_book first, then count_word)
+    const MAX_TOOL_ROUNDS = 10;
+    let toolRound = 0;
+
+    while (
+      result.requiresFunctionExecution &&
+      result.functionCalls &&
+      toolRound < MAX_TOOL_ROUNDS
+    ) {
+      toolRound++;
+
       // Execute all requested functions (favorites, word search, etc.)
       const functionResults = await Promise.all(
         result.functionCalls.map(async (call) => ({

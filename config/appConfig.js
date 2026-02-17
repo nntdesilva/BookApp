@@ -28,12 +28,12 @@ module.exports = {
     },
   },
 
-  // OpenAI configuration
-  openai: {
-    apiKey: process.env.OPENAI_API_KEY,
-    model: process.env.OPENAI_MODEL || "gpt-4.1",
-    temperature: parseFloat(process.env.OPENAI_TEMPERATURE) || 0.7,
-    maxTokens: parseInt(process.env.OPENAI_MAX_TOKENS) || 1000,
+  // Claude configuration
+  claude: {
+    apiKey: process.env.ANTHROPIC_API_KEY,
+    model: process.env.CLAUDE_MODEL || "claude-sonnet-4-20250514",
+    temperature: parseFloat(process.env.CLAUDE_TEMPERATURE) || 0.7,
+    maxTokens: parseInt(process.env.CLAUDE_MAX_TOKENS) || 1000,
   },
 
   // Conversation settings
@@ -41,19 +41,13 @@ module.exports = {
     maxHistoryMessages: parseInt(process.env.MAX_HISTORY_MESSAGES) || 15,
   },
 
-  // Embedding configuration (for semantic word search)
+  // OpenAI Embedding configuration (used ONLY for semantic word search)
   embedding: {
+    apiKey: process.env.OPENAI_EMBEDDINGS_API_KEY,
     model: process.env.EMBEDDING_MODEL || "text-embedding-3-large",
     similarityThreshold:
       parseFloat(process.env.EMBEDDING_SIMILARITY_THRESHOLD) || 0.55,
     batchSize: parseInt(process.env.EMBEDDING_BATCH_SIZE) || 2048,
-  },
-
-  // Assistant configuration (for Code Interpreter text analysis)
-  assistant: {
-    model: process.env.ASSISTANT_MODEL || "gpt-4.1",
-    pollIntervalMs: parseInt(process.env.ASSISTANT_POLL_INTERVAL_MS) || 2000,
-    maxPollAttempts: parseInt(process.env.ASSISTANT_MAX_POLL_ATTEMPTS) || 60,
   },
 
   // Project Gutenberg configuration
