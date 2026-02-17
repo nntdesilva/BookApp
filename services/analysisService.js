@@ -14,73 +14,24 @@ const anthropic = new Anthropic({
 });
 
 const CODE_EXECUTION_SYSTEM = `You are a precise text analysis engine. The book's full text has been uploaded as a file into this container.
-
-Your job:
-1. Locate the uploaded book text file in the container (check the current directory and /tmp)
-2. Write and execute Python code to compute the EXACT answer
-3. Present the final result clearly and concisely
-
-Rules:
-- Always use code execution — never estimate or guess
-- Be precise with counting, calculations, and analysis
-- Handle edge cases (encoding, punctuation, whitespace)
-- Print clear, well-formatted results from your code
-- After execution, provide a concise text summary of the findings
-- The book text file may be very large — process it efficiently
-
+Find the uploaded file (check ./ and /tmp), write and execute Python code to compute the EXACT answer, then present a concise summary.
+Rules: Always use code execution — never estimate or guess. Be precise with counting and analysis. Handle edge cases (encoding, punctuation, whitespace). Process large files efficiently. Print clear, well-formatted results.
 ABSOLUTE WORD COUNTING RULE — NO EXCEPTIONS:
-When counting or ranking words by frequency, you MUST count every single word in the text from first word to last word. This means:
-- Do NOT exclude, filter, or skip ANY words whatsoever — not "the", "a", "and", "of", "to", "in", "is", "it", or ANY other word
-- Do NOT define, declare, or hardcode any kind of stop words list, common words list, or exclusion list in your Python code
-- Do NOT import stop words from ANY library (NLTK, spaCy, sklearn, gensim, or any other)
+When counting or ranking words by frequency, you MUST count every single word from first to last with zero filtering:
+- Do NOT exclude, filter, or skip ANY words — not "the", "a", "and", "of", "to", "in", "is", "it", or ANY other word
+- Do NOT define, declare, hardcode, or import any stop words list from ANY source (NLTK, spaCy, sklearn, gensim, or any other library)
 - Do NOT use any heuristic to decide a word is "too common" or "uninteresting" to count
-- Count ALL words exactly as they appear. If "the" is the most frequent word, report "the" as #1
-- The user's raw word frequencies must reflect the actual text with zero filtering of any kind
+- Count ALL words exactly as they appear — if "the" is most frequent, report "the" as #1. Raw unfiltered counts only
 - Lowercase all words before counting, but never remove any word from the count`;
 
 const VISUALIZATION_SYSTEM = `You are a data visualization expert. You receive PRE-COMPUTED analysis data about a book.
-
-Your job:
-1. Parse the provided analysis data to extract the relevant data points
-2. Write and execute Python code that generates a self-contained interactive Plotly.js HTML chart
-3. The Python code must build the COMPLETE HTML as a string and print it between ---HTML_START--- and ---HTML_END--- markers
-
-CRITICAL RULES:
-- Use the EXACT data provided — never recompute, modify, or round any values
-- Build the HTML as a Python string — do NOT use the plotly Python library
-- The HTML must include: <!DOCTYPE html>, <meta charset="UTF-8">, Plotly CDN script tag (https://cdn.plot.ly/plotly-2.35.2.min.js)
-- Chart must fill the page: width 100%, height 100vh, autosize true
-- Body margin: 0, padding: 0, responsive layout
-- No external dependencies beyond Plotly CDN
-- Print the ENTIRE HTML string between ---HTML_START--- and ---HTML_END--- markers
-
-DESIGN — clean, minimal, modern:
-- Background: #f8f7f4 (warm off-white), plot area: #ffffff
-- Font: "Inter, system-ui, sans-serif" throughout
-- Color palette: use a SINGLE solid color for all bars/series — #4f46e5 (indigo). For pie/treemap use: ["#4f46e5","#7c3aed","#a855f7","#c084fc","#e879f9","#f472b6","#fb7185","#f97316","#facc15","#34d399"]
-- NO per-bar rainbow coloring
-- Title: 18px, font-weight 600, color #111827, no bold subtitle clutter — keep title concise (book title + metric)
-- Subtitle/annotation text: 12px, color #6b7280, placed as a layout annotation if needed (not as a separate title line)
-- Axes: thin gridlines #e5e7eb, no zeroline on y-axis, axis labels 12px color #6b7280
-- Tick labels: 13px, color #374151
-- NO text labels rendered directly on bars/slices — let hover tooltips do the work
-- Hover template: clean, show exact value and percentage where relevant
-- Margins: l:60, r:30, t:70, b:60 (tighter than default)
-- Bar chart: bargap 0.35, corner radius 4 (marker.line.width 0)
-- Legend: only show when there are multiple series; otherwise hide it (showlegend: false)
-- Interactive hover tooltips with clean format
-
-CHART TYPE MAPPING:
-bar chart → type: "bar"
-pie chart → type: "pie" (show label + percent + value in hover)
-line chart → type: "scatter" with mode: "lines"
-scatter plot → type: "scatter" with mode: "markers"
-heatmap → type: "heatmap"
-sankey diagram → type: "sankey"
-histogram → type: "histogram"
-treemap → type: "treemap"
-
-IMPORTANT: Your Python code must print the markers and HTML to stdout. This is the ONLY way the HTML reaches the user.`;
+Write and execute Python code that builds a self-contained Plotly.js HTML chart as a Python string and prints it between ---HTML_START--- and ---HTML_END--- markers to stdout — this is the ONLY way the HTML reaches the user.
+CRITICAL: Use EXACT data provided — never recompute, modify, or round values. Build HTML as a Python string — do NOT use the plotly Python library. No external dependencies beyond Plotly CDN.
+HTML: <!DOCTYPE html>, <meta charset="UTF-8">, Plotly CDN (https://cdn.plot.ly/plotly-2.35.2.min.js), width:100%, height:100vh, autosize:true, body margin:0 padding:0.
+DESIGN: bg #f8f7f4, plot #ffffff, font "Inter, system-ui, sans-serif". Single color #4f46e5 for all bars/series. Pie/treemap palette: ["#4f46e5","#7c3aed","#a855f7","#c084fc","#e879f9","#f472b6","#fb7185","#f97316","#facc15","#34d399"]. No per-bar rainbow coloring.
+Title: 18px weight 600 #111827 (concise: book title + metric). Subtitle: 12px #6b7280 as annotation. Axes: gridlines #e5e7eb, no y-axis zeroline, labels 12px #6b7280, ticks 13px #374151. Margins: l:60 r:30 t:70 b:60.
+Bar: bargap 0.35, corner radius 4 (marker.line.width 0). Legend: only for multiple series (showlegend:false otherwise). NO text labels on bars/slices — hover tooltips only (clean format, show value + percentage where relevant).
+CHART TYPES: bar→"bar", pie→"pie" (hover: label+percent+value), line→"scatter" mode:"lines", scatter→"scatter" mode:"markers", heatmap→"heatmap", sankey→"sankey", histogram→"histogram", treemap→"treemap".`;
 
 /**
  * Analyze a book's text for any arbitrary statistic using Claude's Code Execution tool.

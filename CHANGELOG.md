@@ -4,10 +4,14 @@ All notable changes to the BookApp project are documented in the [changelogs](./
 
 ## Quick Links
 
-- **[Latest Version: v0.9.1](./changelogs/v0.9.1.md)** - 2026-02-17
+- **[Latest Version: v0.9.2](./changelogs/v0.9.2.md)** - 2026-02-17
 - **[Version History](./changelogs/README.md)** - Browse all versions
 
 ## Recent Updates
+
+### [v0.9.2](./changelogs/v0.9.2.md) - 2026-02-17
+
+Optimization: Condensed `CODE_EXECUTION_SYSTEM` and `VISUALIZATION_SYSTEM` prompts in `analysisService.js` for token efficiency. All behavioral rules, design specs, and constraints are fully preserved — prompts are denser but functionally identical.
 
 ### [v0.9.1](./changelogs/v0.9.1.md) - 2026-02-17
 
