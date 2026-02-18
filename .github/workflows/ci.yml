@@ -5,6 +5,10 @@ on:
     branches:
       - main
       - dev
+    paths-ignore:
+      - "CHANGELOG.md"
+      - "**.md"
+      - ".gitignore"
 
 jobs:
   test:
