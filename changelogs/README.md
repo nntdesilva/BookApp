@@ -9,6 +9,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Latest Versions
 
+- **[v0.9.5](v0.9.5.md)** - 2026-02-18
+
+  - Testing: Live-API integration test suite with 14 tests across 6 suites
+  - Covers Gutenberg, OpenAI embeddings, Claude Code Execution, AI chat, and end-to-end word count verification
+  - Tests auto-skip when API keys are absent; no mocks used
+
+- **[v0.9.4](v0.9.4.md)** - 2026-02-18
+
+  - Testing: Comprehensive Jest unit test suite (198 tests, 11 files)
+  - Full mock coverage of Claude, OpenAI, MongoDB, and Gutenberg
+  - Happy-path, edge cases, and error/failure scenarios
+
+- **[v0.9.3](v0.9.3.md)** - 2026-02-17
+
+  - New Feature: Clear entire favourites list via AI tool call
+  - `remove_all_favorites` tool added to `aiService.js`
+
+- **[v0.9.2](v0.9.2.md)** - 2026-02-17
+
+  - Optimization: Condensed `CODE_EXECUTION_SYSTEM` and `VISUALIZATION_SYSTEM` prompts for token efficiency
+
 - **[v0.9.1](v0.9.1.md)** - 2026-02-17
 
   - Migration: Claude models for all AI features (except embeddings)

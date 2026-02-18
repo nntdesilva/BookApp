@@ -4,10 +4,14 @@ All notable changes to the BookApp project are documented in the [changelogs](./
 
 ## Quick Links
 
-- **[Latest Version: v0.9.4](./changelogs/v0.9.4.md)** - 2026-02-18
+- **[Latest Version: v0.9.5](./changelogs/v0.9.5.md)** - 2026-02-18
 - **[Version History](./changelogs/README.md)** - Browse all versions
 
 ## Recent Updates
+
+### [v0.9.5](./changelogs/v0.9.5.md) - 2026-02-18
+
+Testing: Added live-API integration test suite (`tests/integration.test.js`) with 14 tests across 6 suites. Covers Gutenberg text fetching, word counting, OpenAI embeddings, Claude Code Execution analysis, AI chat tool-call routing, multi-turn memory, and a full end-to-end word count verification that asserts the AI's natural-language response contains the exact computed count.
 
 ### [v0.9.4](./changelogs/v0.9.4.md) - 2026-02-18
 
