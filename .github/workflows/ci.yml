@@ -31,12 +31,10 @@ jobs:
       PORT: 3000
       MONGODB_URI: mongodb://127.0.0.1:27017/bookapp_test
       SESSION_SECRET: test-session-secret
-      ANTHROPIC_API_KEY: test-anthropic-key
       CLAUDE_MODEL: claude-sonnet-4-20250514
       CLAUDE_TEMPERATURE: "0.7"
       CLAUDE_MAX_TOKENS: "4096"
       MAX_HISTORY_MESSAGES: "15"
-      OPENAI_EMBEDDINGS_API_KEY: test-openai-key
       EMBEDDING_MODEL: text-embedding-3-large
       EMBEDDING_SIMILARITY_THRESHOLD: "0.48"
 
