@@ -37,6 +37,8 @@ jobs:
       MAX_HISTORY_MESSAGES: "15"
       EMBEDDING_MODEL: text-embedding-3-large
       EMBEDDING_SIMILARITY_THRESHOLD: "0.48"
+      OPENAI_EMBEDDINGS_API_KEY: ${{ secrets.OPENAI_EMBEDDINGS_API_KEY }}
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
 
     steps:
       - name: Checkout code
