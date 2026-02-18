@@ -47,7 +47,7 @@ Bug Fix: Eliminated intermediary AI response step for word count queries. AI now
 
 ### [v0.7.0](./changelogs/v0.7.0.md) - 2026-02-07
 
-Major Feature: Word Count in Books using Project Gutenberg integration with AI-powered query interpretation and Gutendex API search.
+Major Feature: Word Count in Books using Project Gutenberg integration with AI-powered query interpretation & Gutendex API search.
 
 ### [v0.6.1](./changelogs/v0.6.1.md) - 2026-02-04
 

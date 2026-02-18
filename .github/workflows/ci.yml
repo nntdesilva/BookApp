@@ -51,3 +51,6 @@ jobs:
 
       - name: Run unit tests
         run: npx jest --verbose --testPathIgnorePatterns="tests/integration.test.js"
+
+      - name: Run integration tests
+        run: npx jest --verbose tests/integration.test.js
