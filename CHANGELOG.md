@@ -4,10 +4,14 @@ All notable changes to the BookApp project are documented in the [changelogs](./
 
 ## Quick Links
 
-- **[Latest Version: v0.9.3](./changelogs/v0.9.3.md)** - 2026-02-17
+- **[Latest Version: v0.9.4](./changelogs/v0.9.4.md)** - 2026-02-18
 - **[Version History](./changelogs/README.md)** - Browse all versions
 
 ## Recent Updates
+
+### [v0.9.4](./changelogs/v0.9.4.md) - 2026-02-18
+
+Testing: Added comprehensive Jest unit test suite covering all services, controllers, middleware, and utilities. 198 tests across 11 test files, all located in the `tests/` directory. Covers happy-path, edge cases, and error/failure scenarios including malformed LLM output, empty responses, and token limit errors. External dependencies (Claude, OpenAI, MongoDB, Gutenberg) are fully mocked.
 
 ### [v0.9.3](./changelogs/v0.9.3.md) - 2026-02-17
 
