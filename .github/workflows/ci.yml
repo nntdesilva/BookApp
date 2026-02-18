@@ -56,5 +56,29 @@ jobs:
       - name: Run unit tests
         run: npx jest --verbose --testPathIgnorePatterns="tests/integration.test.js"
 
+      - name: Check API key environment variables
+        run: |
+          echo "--- Checking API key presence and format ---"
+
+          if [ -z "$ANTHROPIC_API_KEY" ]; then
+            echo "ERROR: ANTHROPIC_API_KEY is empty or not set"
+          else
+            echo "ANTHROPIC_API_KEY: set (length=${#ANTHROPIC_API_KEY}, prefix=${ANTHROPIC_API_KEY:0:10}...)"
+          fi
+
+          if [ -z "$OPENAI_EMBEDDINGS_API_KEY" ]; then
+            echo "ERROR: OPENAI_EMBEDDINGS_API_KEY is empty or not set"
+          else
+            echo "OPENAI_EMBEDDINGS_API_KEY: set (length=${#OPENAI_EMBEDDINGS_API_KEY}, prefix=${OPENAI_EMBEDDINGS_API_KEY:0:10}...)"
+          fi
+
+          echo "--- Verifying Node.js can read them ---"
+          node -e "
+            const key = process.env.ANTHROPIC_API_KEY || '';
+            const oaiKey = process.env.OPENAI_EMBEDDINGS_API_KEY || '';
+            console.log('ANTHROPIC_API_KEY via node: length=' + key.length + ', starts_with_sk_ant=' + key.startsWith('sk-ant-'));
+            console.log('OPENAI_EMBEDDINGS_API_KEY via node: length=' + oaiKey.length + ', starts_with_sk=' + oaiKey.startsWith('sk-'));
+          "
+
       - name: Run integration tests
         run: npx jest --verbose tests/integration.test.js
