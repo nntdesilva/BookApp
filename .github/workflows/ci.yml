@@ -104,6 +104,24 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Verify GCP secrets are configured
+        run: |
+          missing=()
+          [ -z "$GCP_WIF_PROVIDER" ] && missing+=("GCP_WIF_PROVIDER")
+          [ -z "$GCP_WIF_SERVICE_ACCOUNT" ] && missing+=("GCP_WIF_SERVICE_ACCOUNT")
+          [ -z "$GCP_PROJECT_ID" ] && missing+=("GCP_PROJECT_ID")
+          if [ ${#missing[@]} -ne 0 ]; then
+            echo "ERROR: The following required secrets are not set in this repository:"
+            for s in "${missing[@]}"; do echo "  - $s"; done
+            echo ""
+            echo "Go to: Settings > Secrets and variables > Actions > New repository secret"
+            exit 1
+          fi
+        env:
+          GCP_WIF_PROVIDER: ${{ secrets.GCP_WIF_PROVIDER }}
+          GCP_WIF_SERVICE_ACCOUNT: ${{ secrets.GCP_WIF_SERVICE_ACCOUNT }}
+          GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
         with:
@@ -115,7 +133,28 @@ jobs:
 
       - name: Submit build to Cloud Build
         run: |
-          gcloud builds submit \
+          BUILD_ID=$(gcloud builds submit \
             --config=cloudbuild.yaml \
             --substitutions=COMMIT_SHA=${{ github.sha }} \
-            --project=${{ secrets.GCP_PROJECT_ID }}
+            --project=${{ secrets.GCP_PROJECT_ID }} \
+            --async \
+            --format='value(id)')
+
+          echo "Build submitted: $BUILD_ID"
+
+          while true; do
+            STATUS=$(gcloud builds describe "$BUILD_ID" \
+              --project=${{ secrets.GCP_PROJECT_ID }} \
+              --format='value(status)')
+            case "$STATUS" in
+              SUCCESS)
+                echo "Build succeeded!"
+                exit 0 ;;
+              FAILURE|TIMEOUT|CANCELLED|INTERNAL_ERROR|EXPIRED)
+                echo "Build failed with status: $STATUS"
+                exit 1 ;;
+              *)
+                echo "Build status: $STATUS — waiting..."
+                sleep 15 ;;
+            esac
+          done
