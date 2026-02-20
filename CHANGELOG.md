@@ -4,10 +4,14 @@ All notable changes to the BookApp project are documented in the [changelogs](./
 
 ## Quick Links
 
-- **[Latest Version: v0.9.5](./changelogs/v0.9.5.md)** - 2026-02-18
+- **[Latest Version: v0.9.6](./changelogs/v0.9.6.md)** - 2026-02-20
 - **[Version History](./changelogs/README.md)** - Browse all versions
 
 ## Recent Updates
+
+### [v0.9.6](./changelogs/v0.9.6.md) - 2026-02-20
+
+CI/CD: Added continuous deployment pipeline via GitHub Actions. On push to `main`, after all tests pass, the workflow authenticates to GCP via Workload Identity Federation and submits a Cloud Build job that builds the Docker image, pushes it to Artifact Registry, and deploys to Cloud Run in `us-central1`.
 
 ### [v0.9.5](./changelogs/v0.9.5.md) - 2026-02-18
 
