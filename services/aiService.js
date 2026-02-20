@@ -5,6 +5,32 @@ const anthropic = new Anthropic({
   apiKey: config.claude.apiKey,
 });
 
+const MAX_RETRIES = 3;
+const RETRY_BASE_DELAY_MS = 2000;
+
+async function callWithRetry(fn) {
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      const isOverloaded =
+        err?.status === 529 ||
+        (err?.message && err.message.includes("overloaded_error"));
+      if (isOverloaded && attempt < MAX_RETRIES) {
+        const delay = RETRY_BASE_DELAY_MS * Math.pow(2, attempt);
+        await new Promise((resolve) => setTimeout(resolve, delay));
+        continue;
+      }
+      if (isOverloaded) {
+        throw new Error(
+          "The AI service is temporarily busy. Please try again in a moment.",
+        );
+      }
+      throw err;
+    }
+  }
+}
+
 const META_PROMPT_SYSTEM = `You are a knowledgeable book expert assistant. Provide accurate book/series information with strict tagging, favorites management, and text analysis.
 
 ## TAGGING — Only tag real published book titles with ISBNs
@@ -278,14 +304,16 @@ async function generateChatResponse(message, conversationHistory = []) {
     ];
 
     // Make API call to Claude with tool use enabled
-    const response = await anthropic.messages.create({
-      model: config.claude.model,
-      system: META_PROMPT_SYSTEM,
-      messages: messages,
-      temperature: config.claude.temperature,
-      max_tokens: config.claude.maxTokens,
-      tools: ALL_TOOLS,
-    });
+    const response = await callWithRetry(() =>
+      anthropic.messages.create({
+        model: config.claude.model,
+        system: META_PROMPT_SYSTEM,
+        messages: messages,
+        temperature: config.claude.temperature,
+        max_tokens: config.claude.maxTokens,
+        tools: ALL_TOOLS,
+      }),
+    );
 
     // Check if Claude wants to use tools
     const toolUseBlocks = response.content.filter(
@@ -370,14 +398,16 @@ async function continueAfterFunctionExecution(
     ];
 
     // Get response from Claude (with tools enabled so it can call more if needed)
-    const response = await anthropic.messages.create({
-      model: config.claude.model,
-      system: META_PROMPT_SYSTEM,
-      messages: messages,
-      temperature: config.claude.temperature,
-      max_tokens: config.claude.maxTokens,
-      tools: ALL_TOOLS,
-    });
+    const response = await callWithRetry(() =>
+      anthropic.messages.create({
+        model: config.claude.model,
+        system: META_PROMPT_SYSTEM,
+        messages: messages,
+        temperature: config.claude.temperature,
+        max_tokens: config.claude.maxTokens,
+        tools: ALL_TOOLS,
+      }),
+    );
 
     // Check if Claude wants to call MORE tools
     const toolUseBlocks = response.content.filter(
