@@ -11,6 +11,10 @@ const MongoStore = require("connect-mongo").default || require("connect-mongo");
 
 const app = express();
 
+if (process.env.NODE_ENV === "production") {
+  app.set("trust proxy", 1);
+}
+
 // Import configuration
 const config = require("./config/appConfig");
 const { connectDB } = require("./config/database");

@@ -1,10 +1,17 @@
-name: CI
+name: CI/CD
 
 on:
   pull_request:
     branches:
       - main
       - dev
+    paths-ignore:
+      - "CHANGELOG.md"
+      - "**.md"
+      - ".gitignore"
+  push:
+    branches:
+      - main
     paths-ignore:
       - "CHANGELOG.md"
       - "**.md"
@@ -82,3 +89,33 @@ jobs:
 
       - name: Run integration tests
         run: npx jest --verbose tests/integration.test.js
+
+  deploy:
+    name: Deploy to GCP Cloud Run
+    needs: test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_WIF_SERVICE_ACCOUNT }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Submit build to Cloud Build
+        run: |
+          gcloud builds submit \
+            --config=cloudbuild.yaml \
+            --substitutions=COMMIT_SHA=${{ github.sha }} \
+            --project=${{ secrets.GCP_PROJECT_ID }}
