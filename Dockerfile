@@ -8,5 +8,6 @@ WORKDIR /app
 COPY --from=builder /app/node_modules ./node_modules
 COPY . .
 ENV NODE_ENV=production
+ENV PORT=8080
 EXPOSE 8080
 CMD ["node", "app.js"]
