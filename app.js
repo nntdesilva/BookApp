@@ -15,6 +15,12 @@ if (process.env.NODE_ENV === "production") {
   app.set("trust proxy", 1);
 }
 
+// Health check endpoint — placed before all other middleware so it never
+// depends on MongoDB, sessions, or any other external service.
+app.get("/health", (req, res) => {
+  res.status(200).json({ status: "ok" });
+});
+
 // Import configuration
 const config = require("./config/appConfig");
 const { connectDB } = require("./config/database");
