@@ -4,10 +4,14 @@ All notable changes to the BookApp project are documented in the [changelogs](./
 
 ## Quick Links
 
-- **[Latest Version: v0.9.6](./changelogs/v0.9.6.md)** - 2026-02-20
+- **[Latest Version: v0.9.7](./changelogs/v0.9.7.md)** - 2026-02-23
 - **[Version History](./changelogs/README.md)** - Browse all versions
 
 ## Recent Updates
+
+### [v0.9.7](./changelogs/v0.9.7.md) - 2026-02-23
+
+Migration: Moved deployment platform from GCP Cloud Run to AWS App Runner. Rewrote the CI/CD deploy job to authenticate via AWS OIDC, build and push images to Amazon ECR, and deploy with `aws apprunner update-service`. Added a standalone `GET /health` endpoint and made the MongoDB connection non-fatal for App Runner health checks. Removed `cloudbuild.yaml`.
 
 ### [v0.9.6](./changelogs/v0.9.6.md) - 2026-02-20
 
