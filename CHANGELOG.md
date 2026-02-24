@@ -4,10 +4,14 @@ All notable changes to the BookApp project are documented in the [changelogs](./
 
 ## Quick Links
 
-- **[Latest Version: v0.9.7](./changelogs/v0.9.7.md)** - 2026-02-23
+- **[Latest Version: v0.9.8](./changelogs/v0.9.8.md)** - 2026-02-24
 - **[Version History](./changelogs/README.md)** - Browse all versions
 
 ## Recent Updates
+
+### [v0.9.8](./changelogs/v0.9.8.md) - 2026-02-24
+
+UI Redesign: Full visual overhaul of `public/css/style.css` to a black and white palette — white background, near-black text, hairline grey borders. Book tags updated with distinct muted colour tints (soft green, warm yellow, light orange) for the three book types. All typography, layout, and features unchanged.
 
 ### [v0.9.7](./changelogs/v0.9.7.md) - 2026-02-23
 

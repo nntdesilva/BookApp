@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Latest Versions
 
+- **[v0.9.6](v0.9.6.md)** - 2026-02-24
+
+  - UI Redesign: Chanel-inspired black and white palette
+  - White background, near-black text, hairline grey borders throughout
+  - Book tags updated with distinct muted colour tints (green / yellow / orange)
+
 - **[v0.9.5](v0.9.5.md)** - 2026-02-18
 
   - Testing: Live-API integration test suite with 14 tests across 6 suites
