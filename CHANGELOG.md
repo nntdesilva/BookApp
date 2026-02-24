@@ -4,10 +4,22 @@ All notable changes to the BookApp project are documented in the [changelogs](./
 
 ## Quick Links
 
-- **[Latest Version: v0.9.5](./changelogs/v0.9.5.md)** - 2026-02-18
+- **[Latest Version: v0.9.8](./changelogs/v0.9.8.md)** - 2026-02-24
 - **[Version History](./changelogs/README.md)** - Browse all versions
 
 ## Recent Updates
+
+### [v0.9.8](./changelogs/v0.9.8.md) - 2026-02-24
+
+UI Redesign: Full visual overhaul of `public/css/style.css` to a black and white palette — white background, near-black text, hairline grey borders. Book tags updated with distinct muted colour tints (soft green, warm yellow, light orange) for the three book types. All typography, layout, and features unchanged.
+
+### [v0.9.7](./changelogs/v0.9.7.md) - 2026-02-23
+
+Migration: Moved deployment platform from GCP Cloud Run to AWS App Runner. Rewrote the CI/CD deploy job to authenticate via AWS OIDC, build and push images to Amazon ECR, and deploy with `aws apprunner update-service`. Added a standalone `GET /health` endpoint and made the MongoDB connection non-fatal for App Runner health checks. Removed `cloudbuild.yaml`.
+
+### [v0.9.6](./changelogs/v0.9.6.md) - 2026-02-20
+
+CI/CD: Added continuous deployment pipeline via GitHub Actions. On push to `main`, after all tests pass, the workflow authenticates to GCP via Workload Identity Federation and submits a Cloud Build job that builds the Docker image, pushes it to Artifact Registry, and deploys to Cloud Run in `us-central1`.
 
 ### [v0.9.5](./changelogs/v0.9.5.md) - 2026-02-18
 

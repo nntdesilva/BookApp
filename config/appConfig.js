@@ -31,7 +31,7 @@ module.exports = {
   // Claude configuration
   claude: {
     apiKey: process.env.ANTHROPIC_API_KEY,
-    model: process.env.CLAUDE_MODEL || "claude-sonnet-4-20250514",
+    model: process.env.CLAUDE_MODEL || "claude-sonnet-4-5",
     temperature: parseFloat(process.env.CLAUDE_TEMPERATURE) || 0.7,
     maxTokens: parseInt(process.env.CLAUDE_MAX_TOKENS) || 1000,
   },
