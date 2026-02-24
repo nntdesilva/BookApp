@@ -16,7 +16,7 @@ async function connectDB(uri) {
     console.log("MongoDB connected successfully");
   } catch (error) {
     console.error("MongoDB connection error:", error.message);
-    process.exit(1);
+    console.error("The server will continue running but database features will be unavailable.");
   }
 }
 
