@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "book-app-tools": {
+      "type": "stdio",
+      "command": "node",
+      "args": [
+        "mcp-server.js"
+      ],
+      "env": {
+        "BOOK_APP_USERNAME": "navoda"
+      }
+    }
+  }
+}
