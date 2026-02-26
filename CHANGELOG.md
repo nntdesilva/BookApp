@@ -4,10 +4,18 @@ All notable changes to the BookApp project are documented in the [changelogs](./
 
 ## Quick Links
 
-- **[Latest Version: v0.9.8](./changelogs/v0.9.8.md)** - 2026-02-24
+- **[Latest Version: v0.10.1](./changelogs/v0.10.1.md)** - 2026-02-26
 - **[Version History](./changelogs/README.md)** - Browse all versions
 
 ## Recent Updates
+
+### [v0.10.1](./changelogs/v0.10.1.md) - 2026-02-26
+
+MCP for Claude Code + AWS Deployment: Added Streamable HTTP transport to the MCP server and deployed it to AWS App Runner, making all nine tools accessible remotely for Claude Code with bearer token authentication. Includes `Dockerfile.mcp`, a dedicated CI/CD workflow (`deploy-mcp.yml`) with path-based triggers, and `.mcp.json` updated to the live App Runner endpoint.
+
+### [v0.10.0](./changelogs/v0.10.0.md) - 2026-02-26
+
+New Feature: MCP Server for Cursor. All book-app tools (favourites CRUD, Gutenberg word search, semantic related-word search, code-execution statistics, and Plotly visualizations) are now exposed as a standalone MCP server via `mcp-server.js` using `@modelcontextprotocol/sdk` over stdio transport. Registered in `.cursor/mcp.json` so Cursor can invoke all nine tools natively.
 
 ### [v0.9.8](./changelogs/v0.9.8.md) - 2026-02-24
 

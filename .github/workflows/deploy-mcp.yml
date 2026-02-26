@@ -1,0 +1,176 @@
+name: Deploy MCP Server
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "mcp-server.js"
+      - "Dockerfile.mcp"
+      - "services/favoriteService.js"
+      - "services/gutenbergService.js"
+      - "services/analysisService.js"
+      - "services/embeddingService.js"
+      - "config/database.js"
+      - "config/appConfig.js"
+      - "models/User.js"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/deploy-mcp.yml"
+
+jobs:
+  test:
+    name: Run MCP-related Tests
+    runs-on: ubuntu-latest
+
+    services:
+      mongodb:
+        image: mongo:7
+        ports:
+          - 27017:27017
+        options: >-
+          --health-cmd "mongosh --eval 'db.runCommand({ ping: 1 })'"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      NODE_ENV: test
+      PORT: 3000
+      MONGODB_URI: mongodb://127.0.0.1:27017/bookapp_test
+      SESSION_SECRET: test-session-secret
+      CLAUDE_MODEL: claude-sonnet-4-20250514
+      CLAUDE_TEMPERATURE: "0.7"
+      CLAUDE_MAX_TOKENS: "4096"
+      MAX_HISTORY_MESSAGES: "15"
+      EMBEDDING_MODEL: text-embedding-3-large
+      EMBEDDING_SIMILARITY_THRESHOLD: "0.48"
+      OPENAI_EMBEDDINGS_API_KEY: ${{ secrets.OPENAI_EMBEDDINGS_API_KEY }}
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run unit tests
+        run: npx jest --verbose --testPathIgnorePatterns="tests/integration.test.js"
+
+      - name: Run integration tests
+        run: npx jest --verbose tests/integration.test.js
+
+  deploy:
+    name: Deploy MCP Server to AWS App Runner
+    needs: test
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Verify AWS secrets for MCP
+        run: |
+          missing=()
+          [ -z "$AWS_ROLE_ARN" ] && missing+=("AWS_ROLE_ARN")
+          [ -z "$AWS_REGION" ] && missing+=("AWS_REGION")
+          [ -z "$AWS_ACCOUNT_ID" ] && missing+=("AWS_ACCOUNT_ID")
+          [ -z "$MCP_APPRUNNER_SERVICE_ARN" ] && missing+=("MCP_APPRUNNER_SERVICE_ARN")
+          [ -z "$ECR_ACCESS_ROLE_ARN" ] && missing+=("ECR_ACCESS_ROLE_ARN")
+          if [ ${#missing[@]} -ne 0 ]; then
+            echo "ERROR: Missing secrets for MCP deployment:"
+            for s in "${missing[@]}"; do echo "  - $s"; done
+            echo ""
+            echo "Go to: Settings > Secrets and variables > Actions > New repository secret"
+            exit 1
+          fi
+        env:
+          AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+          AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
+          MCP_APPRUNNER_SERVICE_ARN: ${{ secrets.MCP_APPRUNNER_SERVICE_ARN }}
+          ECR_ACCESS_ROLE_ARN: ${{ secrets.ECR_ACCESS_ROLE_ARN }}
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: ecr-login
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push MCP Docker image
+        env:
+          ECR_REGISTRY: ${{ steps.ecr-login.outputs.registry }}
+          ECR_REPOSITORY: book-app-mcp
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker build \
+            -f Dockerfile.mcp \
+            -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG \
+            -t $ECR_REGISTRY/$ECR_REPOSITORY:latest \
+            .
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+
+      - name: Deploy MCP to App Runner
+        env:
+          MCP_APPRUNNER_SERVICE_ARN: ${{ secrets.MCP_APPRUNNER_SERVICE_ARN }}
+          ECR_ACCESS_ROLE_ARN: ${{ secrets.ECR_ACCESS_ROLE_ARN }}
+          ECR_REGISTRY: ${{ steps.ecr-login.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          aws apprunner update-service \
+            --service-arn "$MCP_APPRUNNER_SERVICE_ARN" \
+            --source-configuration '{
+              "ImageRepository": {
+                "ImageIdentifier": "'"$ECR_REGISTRY/book-app-mcp:$IMAGE_TAG"'",
+                "ImageRepositoryType": "ECR",
+                "ImageConfiguration": {
+                  "Port": "8080"
+                }
+              },
+              "AutoDeploymentsEnabled": false,
+              "AuthenticationConfiguration": {
+                "AccessRoleArn": "'"$ECR_ACCESS_ROLE_ARN"'"
+              }
+            }' \
+            --health-check-configuration '{
+              "Protocol": "HTTP",
+              "Path": "/health",
+              "Interval": 10,
+              "Timeout": 5,
+              "HealthyThreshold": 1,
+              "UnhealthyThreshold": 5
+            }'
+
+          echo "MCP deployment triggered. Waiting for service to stabilize..."
+          for i in $(seq 1 30); do
+            STATUS=$(aws apprunner describe-service \
+              --service-arn "$MCP_APPRUNNER_SERVICE_ARN" \
+              --query "Service.Status" --output text)
+            echo "  Check $i/30: status=$STATUS"
+            if [ "$STATUS" = "RUNNING" ]; then
+              echo "MCP deployment complete — service is running."
+              exit 0
+            fi
+            if echo "$STATUS" | grep -q "FAILED"; then
+              echo "ERROR: MCP service entered $STATUS state"
+              exit 1
+            fi
+            sleep 20
+          done
+          echo "Warning: timed out after 10 min — check App Runner console for status."

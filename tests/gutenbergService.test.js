@@ -2,6 +2,10 @@ jest.mock("../config/appConfig", () => ({
   gutenberg: { apiBaseUrl: "https://gutendex.com" },
 }));
 
+jest.mock("../services/embeddingService", () => ({
+  findRelatedWords: jest.fn(),
+}));
+
 const gutenbergService = require("../services/gutenbergService");
 
 // --- Pure functions (no network) ---
