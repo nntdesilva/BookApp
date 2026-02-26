@@ -4,10 +4,14 @@ All notable changes to the BookApp project are documented in the [changelogs](./
 
 ## Quick Links
 
-- **[Latest Version: v0.10.1](./changelogs/v0.10.1.md)** - 2026-02-26
+- **[Latest Version: v0.10.2](./changelogs/v0.10.2.md)** - 2026-02-26
 - **[Version History](./changelogs/README.md)** - Browse all versions
 
 ## Recent Updates
+
+### [v0.10.2](./changelogs/v0.10.2.md) - 2026-02-26
+
+New Feature: Dark Mode. A persistent pill-shaped toggle switch fixed in the top-right corner of every page lets users switch between light and dark themes. Logged-in users have their preference saved to MongoDB; guests use `localStorage`. All CSS colors were refactored to CSS custom properties with a full `[data-theme="dark"]` override set. No flash of wrong theme on load.
 
 ### [v0.10.1](./changelogs/v0.10.1.md) - 2026-02-26
 
