@@ -27,6 +27,10 @@ jest.mock("../config/appConfig", () => ({
   },
 }));
 
+jest.mock("../services/embeddingService", () => ({
+  findRelatedWords: jest.fn(),
+}));
+
 jest.mock("../services/gutenbergService");
 
 const Anthropic = require("@anthropic-ai/sdk");

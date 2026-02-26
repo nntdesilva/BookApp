@@ -335,7 +335,31 @@ async function generateVisualization(
   }
 }
 
+/**
+ * Analyze a book's text and generate a visualization in one call.
+ * Orchestrates: analyzeBookStatistics → generateVisualization.
+ * @param {string} bookTitle - The title of the book
+ * @param {string} question - The analysis question
+ * @param {string} chartType - The type of chart to create
+ * @returns {Promise<Object>} - Result from generateVisualization, or analysis error
+ */
+async function analyzeAndVisualize(bookTitle, question, chartType) {
+  const analysisResult = await analyzeBookStatistics(bookTitle, question);
+
+  if (!analysisResult.success) {
+    return analysisResult;
+  }
+
+  return generateVisualization(
+    analysisResult.answer,
+    analysisResult.bookTitle,
+    analysisResult.authors,
+    chartType,
+  );
+}
+
 module.exports = {
   analyzeBookStatistics,
   generateVisualization,
+  analyzeAndVisualize,
 };

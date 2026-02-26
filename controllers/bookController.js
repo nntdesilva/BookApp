@@ -7,7 +7,6 @@ const tagService = require("../services/tagService");
 const conversationService = require("../services/conversationService");
 const favoriteService = require("../services/favoriteService");
 const gutenbergService = require("../services/gutenbergService");
-const embeddingService = require("../services/embeddingService");
 const analysisService = require("../services/analysisService");
 const validators = require("../utils/validators");
 const config = require("../config/appConfig");
@@ -60,60 +59,11 @@ async function executeFunction(userId, functionName, args, session) {
       return gutenbergService.countWordInBook(args.bookTitle, args.searchTerm);
     }
 
-    // Semantic related word count (embeddings + regex)
     case "count_related_words_in_book": {
-      // Fetch full book text from Gutenberg
-      const bookResult = await gutenbergService.getBookFullText(args.bookTitle);
-
-      if (!bookResult.success) {
-        return {
-          success: false,
-          error: bookResult.error,
-          searchedTitle: args.bookTitle,
-        };
-      }
-
-      // Extract all unique words from the book
-      const uniqueWords = gutenbergService.extractUniqueWords(bookResult.text);
-
-      // Use embeddings to find words related to the concept
-      const relatedWords = await embeddingService.findRelatedWords(
+      return gutenbergService.countRelatedWordsInBook(
+        args.bookTitle,
         args.concept,
-        uniqueWords,
       );
-
-      // Count each related word using regex
-      const wordCounts = relatedWords.map((entry) => {
-        const countResult = gutenbergService.countWordOccurrences(
-          bookResult.text,
-          entry.word,
-        );
-        return {
-          word: entry.word,
-          count: countResult.count,
-          similarity: entry.similarity,
-        };
-      });
-
-      // Filter out words with 0 occurrences and sort by count descending
-      const filteredCounts = wordCounts
-        .filter((w) => w.count > 0)
-        .sort((a, b) => b.count - a.count);
-
-      const totalOccurrences = filteredCounts.reduce(
-        (sum, w) => sum + w.count,
-        0,
-      );
-
-      return {
-        success: true,
-        bookTitle: bookResult.bookTitle,
-        authors: bookResult.authors,
-        concept: args.concept,
-        relatedWords: filteredCounts,
-        totalOccurrences: totalOccurrences,
-        uniqueWordsAnalyzed: uniqueWords.length,
-      };
     }
 
     // Arbitrary text analysis (Claude Code Execution)
@@ -124,17 +74,12 @@ async function executeFunction(userId, functionName, args, session) {
       );
     }
 
-    // Interactive visualization: compute data ONCE, then render as chart
     case "generate_visualization": {
-      // Build a cache key from the book title + analysis question.
-      // This ensures that switching chart types for the same question
-      // reuses the identical computed data instead of recomputing
-      // (which could produce non-deterministic results).
+      // Session-level cache: reuse analysis data when only the chart type changes.
       const cacheKey = `${(args.bookTitle || "").toLowerCase().trim()}::${(args.question || "").toLowerCase().trim()}`;
 
       let analysisResult;
 
-      // Check the session-level cache first
       if (
         session &&
         session.vizDataCache &&
@@ -142,13 +87,10 @@ async function executeFunction(userId, functionName, args, session) {
       ) {
         analysisResult = session.vizDataCache.data;
       } else {
-        // Cache miss — compute the data via analyzeBookStatistics
         analysisResult = await analysisService.analyzeBookStatistics(
           args.bookTitle,
           args.question,
         );
-
-        // Cache for subsequent requests with different chart types
         if (analysisResult.success && session) {
           session.vizDataCache = { key: cacheKey, data: analysisResult };
         }
@@ -158,8 +100,6 @@ async function executeFunction(userId, functionName, args, session) {
         return analysisResult;
       }
 
-      // Now generate the chart HTML from the pre-computed data.
-      // generateVisualization does NOT compute anything — it only renders.
       return analysisService.generateVisualization(
         analysisResult.answer,
         analysisResult.bookTitle,
