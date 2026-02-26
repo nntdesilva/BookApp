@@ -42,6 +42,10 @@ const userSchema = new mongoose.Schema({
     match: [/^\S+@\S+\.\S+$/, "Please enter a valid email address"],
   },
   favorites: [favoriteSchema],
+  darkMode: {
+    type: Boolean,
+    default: false,
+  },
   createdAt: {
     type: Date,
     default: Date.now,
