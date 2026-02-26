@@ -4,6 +4,7 @@
  */
 
 const config = require("../config/appConfig");
+const embeddingService = require("./embeddingService");
 
 /**
  * Search for a book in Project Gutenberg by title
@@ -313,6 +314,59 @@ async function getBookFullText(bookTitle) {
   };
 }
 
+/**
+ * Count all words semantically related to a concept in a Gutenberg book.
+ * Orchestrates: fetch text → extract unique words → find related via embeddings → count each.
+ * @param {string} bookTitle - The title of the book
+ * @param {string} concept - The concept/category to find related words for
+ * @returns {Promise<Object>} - { success, bookTitle?, authors?, concept?, relatedWords?, totalOccurrences?, uniqueWordsAnalyzed?, error? }
+ */
+async function countRelatedWordsInBook(bookTitle, concept) {
+  const bookResult = await getBookFullText(bookTitle);
+
+  if (!bookResult.success) {
+    return {
+      success: false,
+      error: bookResult.error,
+      searchedTitle: bookTitle,
+    };
+  }
+
+  const uniqueWords = extractUniqueWords(bookResult.text);
+  const relatedWords = await embeddingService.findRelatedWords(
+    concept,
+    uniqueWords,
+  );
+
+  const wordCounts = relatedWords.map((entry) => {
+    const countResult = countWordOccurrences(bookResult.text, entry.word);
+    return {
+      word: entry.word,
+      count: countResult.count,
+      similarity: entry.similarity,
+    };
+  });
+
+  const filteredCounts = wordCounts
+    .filter((w) => w.count > 0)
+    .sort((a, b) => b.count - a.count);
+
+  const totalOccurrences = filteredCounts.reduce(
+    (sum, w) => sum + w.count,
+    0,
+  );
+
+  return {
+    success: true,
+    bookTitle: bookResult.bookTitle,
+    authors: bookResult.authors,
+    concept,
+    relatedWords: filteredCounts,
+    totalOccurrences,
+    uniqueWordsAnalyzed: uniqueWords.length,
+  };
+}
+
 module.exports = {
   searchBook,
   fetchBookText,
@@ -321,4 +375,5 @@ module.exports = {
   countWordInBook,
   extractUniqueWords,
   getBookFullText,
+  countRelatedWordsInBook,
 };

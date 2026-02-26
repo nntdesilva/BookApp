@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "book-app-tools": {
+      "command": "node",
+      "args": ["mcp-server.js"],
+      "cwd": "/Users/navodanilakshi/Documents/book-app",
+      "env": {
+        "BOOK_APP_USERNAME": "navoda"
+      }
+    }
+  }
+}

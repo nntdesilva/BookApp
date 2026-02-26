@@ -9,11 +9,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Latest Versions
 
-- **[v0.9.6](v0.9.6.md)** - 2026-02-24
+- **[v0.10.0](v0.10.0.md)** - 2026-02-26
 
-  - UI Redesign: Chanel-inspired black and white palette
+  - New Feature: MCP Server for Cursor
+  - All nine book-app tools exposed via `mcp-server.js` using `@modelcontextprotocol/sdk` over stdio
+  - Favourites CRUD, Gutenberg word search, semantic search, code-execution statistics, and Plotly visualizations
+  - Cursor registration via `.cursor/mcp.json`
+
+- **[v0.9.8](v0.9.8.md)** - 2026-02-24
+
+  - UI Redesign: Black and white palette
   - White background, near-black text, hairline grey borders throughout
   - Book tags updated with distinct muted colour tints (green / yellow / orange)
+
+- **[v0.9.7](v0.9.7.md)** - 2026-02-23
+
+  - Migration: AWS App Runner deployment replacing GCP Cloud Run
+  - CI/CD via AWS OIDC, Amazon ECR, and `aws apprunner update-service`
+  - Added `GET /health` endpoint; MongoDB connection made non-fatal
+
+- **[v0.9.6](v0.9.6.md)** - 2026-02-20
+
+  - CI/CD: GitHub Actions continuous deployment pipeline
+  - GCP Workload Identity Federation, Cloud Build, Artifact Registry, and Cloud Run
 
 - **[v0.9.5](v0.9.5.md)** - 2026-02-18
 
