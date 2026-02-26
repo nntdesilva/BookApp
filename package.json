@@ -5,6 +5,7 @@
   "main": "app.js",
   "scripts": {
     "start": "node app.js",
+    "start:mcp": "MCP_TRANSPORT=http node mcp-server.js",
     "dev": "nodemon --ext js,mjs,cjs,json,env app.js",
     "test": "jest --verbose",
     "test:watch": "jest --watch",

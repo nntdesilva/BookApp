@@ -1,11 +1,9 @@
 {
   "mcpServers": {
     "book-app-tools": {
-      "command": "node",
-      "args": ["mcp-server.js"],
-      "cwd": "/Users/navodanilakshi/Documents/book-app",
-      "env": {
-        "BOOK_APP_USERNAME": "navoda"
+      "url": "https://jm4ynd2vv7.us-west-2.awsapprunner.com/mcp",
+      "headers": {
+        "Authorization": "Bearer 1b2a46dff43a0814312a47eb5e74206de131a133253db22b9664a23407f06d33"
       }
     }
   }

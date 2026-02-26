@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Latest Versions
 
+- **[v0.10.1](v0.10.1.md)** - 2026-02-26
+
+  - MCP for Claude Code: Streamable HTTP transport + AWS App Runner deployment
+  - `Dockerfile.mcp`, dedicated CI/CD workflow (`deploy-mcp.yml`) with path-based triggers
+  - `.mcp.json` updated to live App Runner endpoint with bearer token auth
+  - All nine MCP tools accessible remotely for Claude Code
+
 - **[v0.10.0](v0.10.0.md)** - 2026-02-26
 
   - New Feature: MCP Server for Cursor
