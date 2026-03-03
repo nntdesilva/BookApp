@@ -4,20 +4,52 @@ on:
   pull_request:
     branches:
       - main
-      - dev
     paths-ignore:
-      - "CHANGELOG.md"
       - "**.md"
       - ".gitignore"
   push:
     branches:
       - main
     paths-ignore:
-      - "CHANGELOG.md"
       - "**.md"
       - ".gitignore"
 
 jobs:
+  lint-branch-name:
+    name: Lint Branch Name
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - name: Check branch name follows convention
+        run: |
+          BRANCH="${{ github.head_ref }}"
+          PATTERN="^(feat|fix|refactor|ci|chore|test|perf|hotfix|revert)\/[a-z0-9][a-z0-9-]*$"
+          if ! echo "$BRANCH" | grep -qE "$PATTERN"; then
+            echo "Branch name '$BRANCH' does not follow the naming convention."
+            echo ""
+            echo "Expected format: type/short-description"
+            echo "  - type must be one of: feat, fix, refactor, ci, chore, test, perf, hotfix, revert"
+            echo "  - description must be lowercase and hyphen-separated"
+            echo ""
+            echo "Examples:"
+            echo "  feat/dark-mode"
+            echo "  fix/login-redirect-bug"
+            echo "  ci/add-lint-step"
+            exit 1
+          fi
+          echo "Branch name '$BRANCH' is valid."
+
+  lint-pr-title:
+    name: Lint PR Title
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: wagoid/commitlint-github-action@v6
+        with:
+          configFile: commitlint.config.js
+          firstParent: false
+
   test:
     name: Run Tests
     runs-on: ubuntu-latest

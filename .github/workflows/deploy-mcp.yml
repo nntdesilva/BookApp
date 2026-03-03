@@ -1,6 +1,22 @@
 name: Deploy MCP Server
 
 on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "mcp-server.js"
+      - "Dockerfile.mcp"
+      - "services/favoriteService.js"
+      - "services/gutenbergService.js"
+      - "services/analysisService.js"
+      - "services/embeddingService.js"
+      - "config/database.js"
+      - "config/appConfig.js"
+      - "models/User.js"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/deploy-mcp.yml"
   push:
     branches:
       - main
@@ -70,6 +86,7 @@ jobs:
   deploy:
     name: Deploy MCP Server to AWS App Runner
     needs: test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
 
     permissions:

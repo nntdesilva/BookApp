@@ -1,0 +1,2 @@
+# Intentionally left empty.
+# Tests are enforced in CI on every PR — running them locally on each commit is too slow.
