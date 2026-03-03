@@ -47,8 +47,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: wagoid/commitlint-github-action@v6
         with:
-          configFile: commitlint.config.js
-          firstParent: false
+          configFile: commitlint.config.mjs
 
   test:
     name: Run Tests
