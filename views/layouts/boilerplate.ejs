@@ -7,6 +7,7 @@
     <script>
       (function(){var t=document.documentElement,g=<%= (typeof currentUser === 'undefined' || !currentUser) ? 'true' : 'false' %>;var u="<%= (typeof currentUser !== 'undefined' && currentUser && currentUser.darkMode) ? 'dark' : 'light' %>";if(g&&typeof localStorage!=="undefined"){var s=localStorage.getItem("theme");if(s==="dark"||s==="light")u=s;}t.setAttribute("data-theme",u);})();
     </script>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="stylesheet" href="/css/style.css" />
     <link
       rel="stylesheet"
