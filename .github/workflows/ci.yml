@@ -263,7 +263,7 @@ jobs:
   # Step 5: Required gate — PR cannot merge unless all applicable tests pass
   # ---------------------------------------------------------------------------
   all-tests-pass:
-    name: All Relevant Tests Passed
+    name: Run Tests
     needs:
       - detect-changes
       - test-auth-service
