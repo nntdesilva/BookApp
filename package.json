@@ -1,59 +1,34 @@
 {
   "name": "bookapp",
-  "version": "1.0.0",
-  "description": "A simple book search app using Express.js and Claude AI",
-  "main": "app.js",
+  "version": "2.0.0",
+  "description": "A book search and analysis app - Microservices Architecture",
+  "private": true,
   "scripts": {
-    "start": "node app.js",
-    "start:mcp": "MCP_TRANSPORT=http node mcp-server.js",
-    "dev": "nodemon --ext js,mjs,cjs,json,env app.js",
-    "test": "jest --verbose",
-    "test:watch": "jest --watch",
-    "test:coverage": "jest --coverage",
+    "docker:up": "docker compose up --build",
+    "docker:down": "docker compose down",
+    "docker:logs": "docker compose logs -f",
+    "install:all": "cd auth-service && npm install && cd ../favorites-service && npm install && cd ../books-service && npm install && cd ../analysis-service && npm install && cd ../chat-service && npm install && cd ../gateway && npm install && cd ../mcp-server && npm install",
+    "dev:auth": "cd auth-service && npm run dev",
+    "dev:favorites": "cd favorites-service && npm run dev",
+    "dev:books": "cd books-service && npm run dev",
+    "dev:analysis": "cd analysis-service && npm run dev",
+    "dev:chat": "cd chat-service && npm run dev",
+    "dev:gateway": "cd gateway && npm run dev",
+    "dev:mcp": "cd mcp-server && npm start",
     "prepare": "husky"
   },
   "keywords": [
     "express",
     "claude",
     "anthropic",
-    "books"
+    "books",
+    "microservices"
   ],
   "author": "",
   "license": "ISC",
-  "dependencies": {
-    "@anthropic-ai/sdk": "^0.74.0",
-    "@modelcontextprotocol/sdk": "^1.27.1",
-    "connect-mongo": "^6.0.0",
-    "dotenv": "^16.3.1",
-    "ejs": "^3.1.9",
-    "ejs-mate": "^4.0.0",
-    "express": "^4.18.2",
-    "express-session": "^1.19.0",
-    "method-override": "^3.0.0",
-    "mongoose": "^9.1.5",
-    "openai": "^6.22.0",
-    "passport": "^0.7.0",
-    "passport-local": "^1.0.0",
-    "passport-local-mongoose": "^9.0.1",
-    "zod": "^4.3.6"
-  },
   "devDependencies": {
     "@commitlint/cli": "^20.4.3",
     "@commitlint/config-conventional": "^20.4.3",
-    "@types/jest": "^29.5.11",
-    "husky": "^9.1.7",
-    "jest": "^29.7.0",
-    "nodemon": "^3.0.1",
-    "supertest": "^6.3.3"
-  },
-  "jest": {
-    "testEnvironment": "node",
-    "coveragePathIgnorePatterns": [
-      "/node_modules/"
-    ],
-    "testMatch": [
-      "**/tests/**/*.test.js",
-      "**/tests/**/*.spec.js"
-    ]
+    "husky": "^9.1.7"
   }
 }

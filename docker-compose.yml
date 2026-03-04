@@ -1,0 +1,132 @@
+services:
+  # --- Infrastructure ---
+  mongodb:
+    image: mongo:7
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo-data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.runCommand('ping').ok"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # --- Application Services ---
+  auth-service:
+    build:
+      context: ./auth-service
+    ports:
+      - "3001:3001"
+    environment:
+      PORT: 3001
+      MONGODB_URI: mongodb://mongodb:27017/bookapp_auth
+      JWT_SECRET: ${JWT_SECRET}
+    depends_on:
+      mongodb:
+        condition: service_healthy
+
+  favorites-service:
+    build:
+      context: ./favorites-service
+    ports:
+      - "3002:3002"
+    environment:
+      PORT: 3002
+      MONGODB_URI: mongodb://mongodb:27017/bookapp_favorites
+      JWT_SECRET: ${JWT_SECRET}
+    depends_on:
+      mongodb:
+        condition: service_healthy
+
+  books-service:
+    build:
+      context: ./books-service
+    ports:
+      - "3003:3003"
+    environment:
+      PORT: 3003
+      OPENAI_EMBEDDINGS_API_KEY: ${OPENAI_EMBEDDINGS_API_KEY}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-text-embedding-3-large}
+      EMBEDDING_SIMILARITY_THRESHOLD: ${EMBEDDING_SIMILARITY_THRESHOLD:-0.48}
+      GUTENBERG_API_URL: ${GUTENBERG_API_URL:-https://gutendex.com}
+
+  analysis-service:
+    build:
+      context: ./analysis-service
+    ports:
+      - "3004:3004"
+    environment:
+      PORT: 3004
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      CLAUDE_MODEL: ${CLAUDE_MODEL:-claude-sonnet-4-5}
+      REDIS_URL: redis://redis:6379
+      BOOKS_SERVICE_URL: http://books-service:3003
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  chat-service:
+    build:
+      context: ./chat-service
+    ports:
+      - "3005:3005"
+    environment:
+      PORT: 3005
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      CLAUDE_MODEL: ${CLAUDE_MODEL:-claude-sonnet-4-5}
+      CLAUDE_TEMPERATURE: ${CLAUDE_TEMPERATURE:-0.7}
+      CLAUDE_MAX_TOKENS: ${CLAUDE_MAX_TOKENS:-4096}
+      MAX_HISTORY_MESSAGES: ${MAX_HISTORY_MESSAGES:-15}
+      REDIS_URL: redis://redis:6379
+      FAVORITES_SERVICE_URL: http://favorites-service:3002
+      BOOKS_SERVICE_URL: http://books-service:3003
+      ANALYSIS_SERVICE_URL: http://analysis-service:3004
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  gateway:
+    build:
+      context: ./gateway
+    ports:
+      - "3000:3000"
+    environment:
+      PORT: 3000
+      JWT_SECRET: ${JWT_SECRET}
+      AUTH_SERVICE_URL: http://auth-service:3001
+      CHAT_SERVICE_URL: http://chat-service:3005
+      FAVORITES_SERVICE_URL: http://favorites-service:3002
+    depends_on:
+      - auth-service
+      - chat-service
+
+  mcp-server:
+    build:
+      context: ./mcp-server
+    ports:
+      - "3006:3006"
+    environment:
+      MCP_PORT: 3006
+      MCP_TRANSPORT: http
+      MCP_USER_ID: ${MCP_USER_ID:-}
+      MCP_API_KEY: ${MCP_API_KEY:-}
+      FAVORITES_SERVICE_URL: http://favorites-service:3002
+      BOOKS_SERVICE_URL: http://books-service:3003
+      ANALYSIS_SERVICE_URL: http://analysis-service:3004
+
+volumes:
+  mongo-data:
+  redis-data:

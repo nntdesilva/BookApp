@@ -1,0 +1,19 @@
+{
+  "name": "analysis-service",
+  "version": "1.0.0",
+  "description": "Analysis microservice - Claude Code Execution for text analysis and visualization",
+  "main": "app.js",
+  "scripts": {
+    "start": "node app.js",
+    "dev": "nodemon app.js"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.74.0",
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2",
+    "ioredis": "^5.6.1"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1"
+  }
+}
