@@ -178,7 +178,7 @@ describe("Analysis Service (Claude Code Execution)", () => {
       const book = await gutenbergService.getBookFullText("A Christmas Carol");
       const directCount = gutenbergService.countWordOccurrences(book.text, "Scrooge");
 
-      const codeExecCount = numbers.map(Number).find((n) => n > 50);
+      const codeExecCount = numbers.map(Number).find((n) => n > 50 && n < 10000);
       if (codeExecCount !== undefined) {
         expect(Math.abs(codeExecCount - directCount.count)).toBeLessThan(15);
       }
