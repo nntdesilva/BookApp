@@ -6,6 +6,8 @@
 const config = require("../config/appConfig");
 const embeddingService = require("./embeddingService");
 
+const bookTextCache = new Map();
+
 /**
  * Search for a book in Project Gutenberg by title
  * @param {string} bookTitle - The title of the book to search for
@@ -128,6 +130,10 @@ function getTextUrl(formats) {
  * @returns {Promise<Object>} - { success: boolean, text?: string, error?: string }
  */
 async function fetchBookText(textUrl) {
+  if (bookTextCache.has(textUrl)) {
+    return bookTextCache.get(textUrl);
+  }
+
   try {
     const response = await fetch(textUrl);
 
@@ -137,10 +143,9 @@ async function fetchBookText(textUrl) {
 
     const text = await response.text();
 
-    return {
-      success: true,
-      text: text,
-    };
+    const result = { success: true, text };
+    bookTextCache.set(textUrl, result);
+    return result;
   } catch (error) {
     console.error("Error fetching book text:", error);
     return {
