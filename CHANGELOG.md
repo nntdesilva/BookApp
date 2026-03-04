@@ -4,10 +4,14 @@ All notable changes to the BookApp project are documented in the [changelogs](./
 
 ## Quick Links
 
-- **[Latest Version: v0.10.2](./changelogs/v0.10.2.md)** - 2026-02-26
+- **[Latest Version: v0.11.0](./changelogs/v0.11.0.md)** - 2026-03-04
 - **[Version History](./changelogs/README.md)** - Browse all versions
 
 ## Recent Updates
+
+### [v0.11.0](./changelogs/v0.11.0.md) - 2026-03-04
+
+Architecture: Decomposed the Express.js monolith into seven independently deployable microservices (gateway, auth-service, favorites-service, books-service, analysis-service, chat-service, mcp-server). Authentication migrated from Passport.js sessions to JWT tokens with Redis-backed conversation state. The `User.favorites` sub-document was extracted into a standalone `Favorite` collection. All services are orchestrated via Docker Compose with shared MongoDB and Redis infrastructure.
 
 ### [v0.10.2](./changelogs/v0.10.2.md) - 2026-02-26
 
