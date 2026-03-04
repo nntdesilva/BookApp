@@ -113,7 +113,7 @@ jobs:
                 "ImageIdentifier": "'"$ECR_REGISTRY/book-app-mcp:$IMAGE_TAG"'",
                 "ImageRepositoryType": "ECR",
                 "ImageConfiguration": {
-                  "Port": "8080"
+                  "Port": "3006"
                 }
               },
               "AutoDeploymentsEnabled": false,
