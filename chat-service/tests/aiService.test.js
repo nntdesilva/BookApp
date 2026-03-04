@@ -155,9 +155,12 @@ describe("generateChatResponse", () => {
     });
 
     test("returns error when ANTHROPIC_API_KEY is missing", async () => {
-      delete process.env.ANTHROPIC_API_KEY;
+      const config = require("../config/appConfig");
+      const origKey = config.claude.apiKey;
+      config.claude.apiKey = null;
       const result = await generateChatResponse("hello", []);
       expect(result.error).toMatch(/API key is not configured/);
+      config.claude.apiKey = origKey;
     });
 
     test("returns error on API exception", async () => {
