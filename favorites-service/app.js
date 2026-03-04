@@ -20,8 +20,12 @@ app.use((err, _req, res, _next) => {
   res.status(500).json({ error: "Internal server error" });
 });
 
-connectDB(config.mongodb.uri).then(() => {
-  app.listen(config.server.port, () => {
-    console.log(`[favorites-service] Running on port ${config.server.port}`);
+if (require.main === module) {
+  connectDB(config.mongodb.uri).then(() => {
+    app.listen(config.server.port, () => {
+      console.log(`[favorites-service] Running on port ${config.server.port}`);
+    });
   });
-});
+}
+
+module.exports = app;

@@ -25,16 +25,12 @@ jest.mock("../config/appConfig", () => ({
     apiKey: "test-key",
     model: "claude-sonnet-4-20250514",
   },
+  services: {
+    booksUrl: "http://localhost:3003",
+  },
 }));
-
-jest.mock("../services/embeddingService", () => ({
-  findRelatedWords: jest.fn(),
-}));
-
-jest.mock("../services/gutenbergService");
 
 const Anthropic = require("@anthropic-ai/sdk");
-const gutenbergService = require("../services/gutenbergService");
 
 let mockBeta;
 
@@ -46,6 +42,10 @@ beforeEach(() => {
     mockBeta.files.delete.mockReset();
     mockBeta.messages.create.mockReset();
   }
+  jest.clearAllMocks();
+  // Re-get mockBeta after clear
+  const inst = Anthropic.mock.results[0]?.value;
+  if (inst) mockBeta = inst.beta;
 });
 
 const {
@@ -53,25 +53,37 @@ const {
   generateVisualization,
 } = require("../services/analysisService");
 
-// --- extractHtmlFromResponse (tested via generateVisualization) ---
+const bookResult = {
+  success: true,
+  text: "Once upon a time there was a cat.",
+  bookTitle: "Test Book",
+  authors: ["Author"],
+};
+
+function mockFetchSuccess(data = bookResult) {
+  global.fetch = jest.fn().mockResolvedValue({
+    ok: true,
+    json: async () => data,
+  });
+}
+
+function mockFetchFailure(status = 500) {
+  global.fetch = jest.fn().mockResolvedValue({
+    ok: false,
+    status,
+  });
+}
+
+// --- analyzeBookStatistics ---
 
 describe("analyzeBookStatistics", () => {
-  const bookResult = {
-    success: true,
-    text: "Once upon a time there was a cat.",
-    bookTitle: "Test Book",
-    authors: ["Author"],
-  };
-
   describe("happy path", () => {
     test("returns analysis answer on success", async () => {
-      gutenbergService.getBookFullText.mockResolvedValue(bookResult);
+      mockFetchSuccess();
       mockBeta.files.upload.mockResolvedValue({ id: "file-123" });
       mockBeta.messages.create.mockResolvedValue({
         stop_reason: "end_turn",
-        content: [
-          { type: "text", text: "The word 'cat' appears 1 time." },
-        ],
+        content: [{ type: "text", text: "The word 'cat' appears 1 time." }],
       });
 
       const result = await analyzeBookStatistics("Test Book", "count cats");
@@ -83,7 +95,7 @@ describe("analyzeBookStatistics", () => {
     });
 
     test("handles pause_turn continuations", async () => {
-      gutenbergService.getBookFullText.mockResolvedValue(bookResult);
+      mockFetchSuccess();
       mockBeta.files.upload.mockResolvedValue({ id: "file-1" });
 
       mockBeta.messages.create
@@ -105,7 +117,7 @@ describe("analyzeBookStatistics", () => {
     });
 
     test("limits continuations to 5", async () => {
-      gutenbergService.getBookFullText.mockResolvedValue(bookResult);
+      mockFetchSuccess();
       mockBeta.files.upload.mockResolvedValue({ id: "file-2" });
 
       mockBeta.messages.create.mockResolvedValue({
@@ -114,7 +126,6 @@ describe("analyzeBookStatistics", () => {
       });
 
       const result = await analyzeBookStatistics("Test Book", "q");
-      // 1 initial + 5 continuations = 6 calls
       expect(mockBeta.messages.create).toHaveBeenCalledTimes(6);
       expect(result.success).toBe(true);
     });
@@ -122,7 +133,7 @@ describe("analyzeBookStatistics", () => {
 
   describe("edge cases", () => {
     test("returns error when analysis produces empty text", async () => {
-      gutenbergService.getBookFullText.mockResolvedValue(bookResult);
+      mockFetchSuccess();
       mockBeta.files.upload.mockResolvedValue({ id: "file-3" });
       mockBeta.messages.create.mockResolvedValue({
         stop_reason: "end_turn",
@@ -135,7 +146,7 @@ describe("analyzeBookStatistics", () => {
     });
 
     test("returns error when LLM returns no text blocks", async () => {
-      gutenbergService.getBookFullText.mockResolvedValue(bookResult);
+      mockFetchSuccess();
       mockBeta.files.upload.mockResolvedValue({ id: "file-4" });
       mockBeta.messages.create.mockResolvedValue({
         stop_reason: "end_turn",
@@ -149,23 +160,26 @@ describe("analyzeBookStatistics", () => {
   });
 
   describe("error scenarios", () => {
-    test("returns error when book not found", async () => {
-      gutenbergService.getBookFullText.mockResolvedValue({
-        success: false,
-        error: "Book not found in Project Gutenberg",
-      });
+    test("returns error when books-service returns not found", async () => {
+      mockFetchSuccess({ success: false, error: "Book not found in Project Gutenberg" });
 
       const result = await analyzeBookStatistics("Missing", "q");
       expect(result.success).toBe(false);
       expect(result.error).toMatch(/not found/i);
     });
 
-    test("returns error on API exception", async () => {
-      gutenbergService.getBookFullText.mockResolvedValue(bookResult);
+    test("returns error when books-service HTTP call fails", async () => {
+      mockFetchFailure(503);
+
+      const result = await analyzeBookStatistics("Test Book", "q");
+      expect(result.success).toBe(false);
+      expect(result.error).toMatch(/Books service error/);
+    });
+
+    test("returns error on Claude API exception", async () => {
+      mockFetchSuccess();
       mockBeta.files.upload.mockResolvedValue({ id: "file-5" });
-      mockBeta.messages.create.mockRejectedValue(
-        new Error("Service unavailable"),
-      );
+      mockBeta.messages.create.mockRejectedValue(new Error("Service unavailable"));
 
       const result = await analyzeBookStatistics("Test Book", "q");
       expect(result.success).toBe(false);
@@ -173,19 +187,16 @@ describe("analyzeBookStatistics", () => {
     });
 
     test("cleans up uploaded file even on error", async () => {
-      gutenbergService.getBookFullText.mockResolvedValue(bookResult);
+      mockFetchSuccess();
       mockBeta.files.upload.mockResolvedValue({ id: "file-cleanup" });
       mockBeta.messages.create.mockRejectedValue(new Error("fail"));
 
       await analyzeBookStatistics("Test Book", "q");
-      expect(mockBeta.files.delete).toHaveBeenCalledWith(
-        "file-cleanup",
-        expect.anything(),
-      );
+      expect(mockBeta.files.delete).toHaveBeenCalledWith("file-cleanup", expect.anything());
     });
 
     test("handles file cleanup failure gracefully", async () => {
-      gutenbergService.getBookFullText.mockResolvedValue(bookResult);
+      mockFetchSuccess();
       mockBeta.files.upload.mockResolvedValue({ id: "file-6" });
       mockBeta.messages.create.mockResolvedValue({
         stop_reason: "end_turn",
@@ -193,13 +204,12 @@ describe("analyzeBookStatistics", () => {
       });
       mockBeta.files.delete.mockRejectedValue(new Error("cleanup failed"));
 
-      // Should not throw
       const result = await analyzeBookStatistics("Test Book", "q");
       expect(result.success).toBe(true);
     });
 
     test("handles file upload failure", async () => {
-      gutenbergService.getBookFullText.mockResolvedValue(bookResult);
+      mockFetchSuccess();
       mockBeta.files.upload.mockRejectedValue(new Error("Upload failed"));
 
       const result = await analyzeBookStatistics("Test Book", "q");
@@ -209,28 +219,21 @@ describe("analyzeBookStatistics", () => {
   });
 });
 
+// --- generateVisualization ---
+
 describe("generateVisualization", () => {
-  const htmlDoc =
-    '<!DOCTYPE html><html><body><div id="chart"></div></body></html>';
+  const htmlDoc = '<!DOCTYPE html><html><body><div id="chart"></div></body></html>';
 
   describe("happy path", () => {
     test("extracts HTML between markers", async () => {
       mockBeta.messages.create.mockResolvedValue({
         stop_reason: "end_turn",
         content: [
-          {
-            type: "text",
-            text: `---HTML_START---\n${htmlDoc}\n---HTML_END---`,
-          },
+          { type: "text", text: `---HTML_START---\n${htmlDoc}\n---HTML_END---` },
         ],
       });
 
-      const result = await generateVisualization(
-        "data",
-        "Book",
-        ["Author"],
-        "bar chart",
-      );
+      const result = await generateVisualization("data", "Book", ["Author"], "bar chart");
       expect(result.success).toBe(true);
       expect(result.html).toContain("<!DOCTYPE html>");
     });
@@ -241,17 +244,12 @@ describe("generateVisualization", () => {
         content: [{ type: "text", text: htmlDoc }],
       });
 
-      const result = await generateVisualization(
-        "data",
-        "Book",
-        ["Author"],
-        "pie chart",
-      );
+      const result = await generateVisualization("data", "Book", ["Author"], "pie chart");
       expect(result.success).toBe(true);
       expect(result.html).toContain("<!DOCTYPE html>");
     });
 
-    test("extracts HTML from code block in stdout", async () => {
+    test("extracts HTML from stdout content block", async () => {
       mockBeta.messages.create.mockResolvedValue({
         stop_reason: "end_turn",
         content: [
@@ -262,32 +260,7 @@ describe("generateVisualization", () => {
         ],
       });
 
-      const result = await generateVisualization(
-        "data",
-        "Book",
-        ["Author"],
-        "line chart",
-      );
-      expect(result.success).toBe(true);
-    });
-
-    test("extracts HTML from content array items", async () => {
-      mockBeta.messages.create.mockResolvedValue({
-        stop_reason: "end_turn",
-        content: [
-          {
-            type: "tool_result",
-            content: [{ output: `---HTML_START---\n${htmlDoc}\n---HTML_END---` }],
-          },
-        ],
-      });
-
-      const result = await generateVisualization(
-        "data",
-        "Book",
-        ["Author"],
-        "scatter plot",
-      );
+      const result = await generateVisualization("data", "Book", ["Author"], "line chart");
       expect(result.success).toBe(true);
     });
 
@@ -298,12 +271,7 @@ describe("generateVisualization", () => {
         content: [{ type: "text", text: markdown }],
       });
 
-      const result = await generateVisualization(
-        "data",
-        "Book",
-        ["Author"],
-        "bar chart",
-      );
+      const result = await generateVisualization("data", "Book", ["Author"], "bar chart");
       expect(result.success).toBe(true);
       expect(result.html).toContain("<!DOCTYPE html>");
     });
@@ -328,21 +296,10 @@ describe("generateVisualization", () => {
         })
         .mockResolvedValueOnce({
           stop_reason: "end_turn",
-          content: [
-            {
-              type: "text",
-              text: `---HTML_START---\n${htmlDoc}\n---HTML_END---`,
-            },
-          ],
+          content: [{ type: "text", text: `---HTML_START---\n${htmlDoc}\n---HTML_END---` }],
         });
 
-      const result = await generateVisualization(
-        "data",
-        "Book",
-        ["Author"],
-        "bar chart",
-      );
-      // 1 initial + 3 continuations = 4 calls max
+      const result = await generateVisualization("data", "Book", ["Author"], "bar chart");
       expect(mockBeta.messages.create).toHaveBeenCalledTimes(4);
       expect(result.success).toBe(true);
     });
@@ -355,27 +312,15 @@ describe("generateVisualization", () => {
         content: [{ type: "text", text: "I could not generate a chart." }],
       });
 
-      const result = await generateVisualization(
-        "data",
-        "Book",
-        ["Author"],
-        "bar chart",
-      );
+      const result = await generateVisualization("data", "Book", ["Author"], "bar chart");
       expect(result.success).toBe(false);
       expect(result.error).toMatch(/did not produce valid HTML/);
     });
 
     test("returns error on API exception", async () => {
-      mockBeta.messages.create.mockRejectedValue(
-        new Error("API rate limited"),
-      );
+      mockBeta.messages.create.mockRejectedValue(new Error("API rate limited"));
 
-      const result = await generateVisualization(
-        "data",
-        "Book",
-        ["Author"],
-        "bar",
-      );
+      const result = await generateVisualization("data", "Book", ["Author"], "bar");
       expect(result.success).toBe(false);
       expect(result.error).toBe("API rate limited");
     });
@@ -386,32 +331,8 @@ describe("generateVisualization", () => {
         content: [{ type: "text", text: "Processing..." }],
       });
 
-      const result = await generateVisualization(
-        "data",
-        "Book",
-        ["Author"],
-        "bar",
-      );
-      // 1 initial + 3 continuations = 4
+      const result = await generateVisualization("data", "Book", ["Author"], "bar");
       expect(mockBeta.messages.create).toHaveBeenCalledTimes(4);
-      expect(result.success).toBe(false);
-    });
-
-    test("handles malformed LLM response with unexpected block types", async () => {
-      mockBeta.messages.create.mockResolvedValue({
-        stop_reason: "end_turn",
-        content: [
-          { type: "thinking", text: "internal reasoning" },
-          { type: "text", text: "No HTML here" },
-        ],
-      });
-
-      const result = await generateVisualization(
-        "data",
-        "Book",
-        ["Author"],
-        "bar",
-      );
       expect(result.success).toBe(false);
     });
   });

@@ -1,4 +1,4 @@
-name: CI/CD
+name: CI
 
 on:
   pull_request:
@@ -15,6 +15,9 @@ on:
       - ".gitignore"
 
 jobs:
+  # ---------------------------------------------------------------------------
+  # Step 1: Lint branch name and PR title (PR only)
+  # ---------------------------------------------------------------------------
   lint-branch-name:
     name: Lint Branch Name
     runs-on: ubuntu-latest
@@ -26,15 +29,9 @@ jobs:
           PATTERN="^(feat|fix|refactor|ci|chore|test|perf|hotfix|revert)\/[a-z0-9][a-z0-9-]*$"
           if ! echo "$BRANCH" | grep -qE "$PATTERN"; then
             echo "Branch name '$BRANCH' does not follow the naming convention."
-            echo ""
             echo "Expected format: type/short-description"
-            echo "  - type must be one of: feat, fix, refactor, ci, chore, test, perf, hotfix, revert"
-            echo "  - description must be lowercase and hyphen-separated"
-            echo ""
-            echo "Examples:"
-            echo "  feat/dark-mode"
-            echo "  fix/login-redirect-bug"
-            echo "  ci/add-lint-step"
+            echo "  type must be one of: feat, fix, refactor, ci, chore, test, perf, hotfix, revert"
+            echo "  description must be lowercase and hyphen-separated"
             exit 1
           fi
           echo "Branch name '$BRANCH' is valid."
@@ -49,10 +46,56 @@ jobs:
         with:
           configFile: commitlint.config.mjs
 
-  test:
-    name: Run Tests
+  # ---------------------------------------------------------------------------
+  # Step 2: Detect which services changed
+  # ---------------------------------------------------------------------------
+  detect-changes:
+    name: Detect Changed Services
     runs-on: ubuntu-latest
+    outputs:
+      auth: ${{ steps.filter.outputs.auth }}
+      favorites: ${{ steps.filter.outputs.favorites }}
+      books: ${{ steps.filter.outputs.books }}
+      analysis: ${{ steps.filter.outputs.analysis }}
+      chat: ${{ steps.filter.outputs.chat }}
+      gateway: ${{ steps.filter.outputs.gateway }}
+      any-service: ${{ steps.filter.outputs.any-service }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            auth:
+              - 'auth-service/**'
+            favorites:
+              - 'favorites-service/**'
+            books:
+              - 'books-service/**'
+            analysis:
+              - 'analysis-service/**'
+            chat:
+              - 'chat-service/**'
+            gateway:
+              - 'gateway/**'
+            any-service:
+              - 'auth-service/**'
+              - 'favorites-service/**'
+              - 'books-service/**'
+              - 'analysis-service/**'
+              - 'chat-service/**'
+              - 'gateway/**'
+              - 'e2e/**'
+              - 'mcp-server/**'
 
+  # ---------------------------------------------------------------------------
+  # Step 3: Per-service unit tests (run only when that service changes)
+  # ---------------------------------------------------------------------------
+  test-auth-service:
+    name: Test — auth-service
+    needs: detect-changes
+    if: needs.detect-changes.outputs.auth == 'true'
+    runs-on: ubuntu-latest
     services:
       mongodb:
         image: mongo:7
@@ -63,168 +106,198 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
-
     env:
       NODE_ENV: test
-      PORT: 3000
-      MONGODB_URI: mongodb://127.0.0.1:27017/bookapp_test
-      SESSION_SECRET: test-session-secret
+      MONGODB_URI: mongodb://127.0.0.1:27017/bookapp_auth_test
+      JWT_SECRET: test-jwt-secret
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: auth-service/package.json
+      - run: npm install
+        working-directory: auth-service
+      - run: npm test
+        working-directory: auth-service
+
+  test-favorites-service:
+    name: Test — favorites-service
+    needs: detect-changes
+    if: needs.detect-changes.outputs.favorites == 'true'
+    runs-on: ubuntu-latest
+    env:
+      NODE_ENV: test
+      JWT_SECRET: test-jwt-secret
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: favorites-service/package.json
+      - run: npm install
+        working-directory: favorites-service
+      - run: npm test
+        working-directory: favorites-service
+
+  test-books-service:
+    name: Test — books-service
+    needs: detect-changes
+    if: needs.detect-changes.outputs.books == 'true'
+    runs-on: ubuntu-latest
+    env:
+      NODE_ENV: test
+      EMBEDDING_MODEL: text-embedding-3-large
+      EMBEDDING_SIMILARITY_THRESHOLD: "0.48"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: books-service/package.json
+      - run: npm install
+        working-directory: books-service
+      - run: npm test
+        working-directory: books-service
+
+  test-analysis-service:
+    name: Test — analysis-service
+    needs: detect-changes
+    if: needs.detect-changes.outputs.analysis == 'true'
+    runs-on: ubuntu-latest
+    env:
+      NODE_ENV: test
+      CLAUDE_MODEL: claude-sonnet-4-20250514
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: analysis-service/package.json
+      - run: npm install
+        working-directory: analysis-service
+      - run: npm test
+        working-directory: analysis-service
+
+  test-chat-service:
+    name: Test — chat-service
+    needs: detect-changes
+    if: needs.detect-changes.outputs.chat == 'true'
+    runs-on: ubuntu-latest
+    env:
+      NODE_ENV: test
       CLAUDE_MODEL: claude-sonnet-4-20250514
       CLAUDE_TEMPERATURE: "0.7"
       CLAUDE_MAX_TOKENS: "4096"
       MAX_HISTORY_MESSAGES: "15"
-      EMBEDDING_MODEL: text-embedding-3-large
-      EMBEDDING_SIMILARITY_THRESHOLD: "0.48"
-      OPENAI_EMBEDDINGS_API_KEY: ${{ secrets.OPENAI_EMBEDDINGS_API_KEY }}
-      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: npm
+          cache-dependency-path: chat-service/package.json
+      - run: npm install
+        working-directory: chat-service
+      - run: npm test
+        working-directory: chat-service
 
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Run unit tests
-        run: npx jest --verbose --testPathIgnorePatterns="tests/integration.test.js"
-
-      - name: Check API key environment variables
-        run: |
-          echo "--- Checking API key presence and format ---"
-
-          if [ -z "$ANTHROPIC_API_KEY" ]; then
-            echo "ERROR: ANTHROPIC_API_KEY is empty or not set"
-          else
-            echo "ANTHROPIC_API_KEY: set (length=${#ANTHROPIC_API_KEY}, prefix=${ANTHROPIC_API_KEY:0:10}...)"
-          fi
-
-          if [ -z "$OPENAI_EMBEDDINGS_API_KEY" ]; then
-            echo "ERROR: OPENAI_EMBEDDINGS_API_KEY is empty or not set"
-          else
-            echo "OPENAI_EMBEDDINGS_API_KEY: set (length=${#OPENAI_EMBEDDINGS_API_KEY}, prefix=${OPENAI_EMBEDDINGS_API_KEY:0:10}...)"
-          fi
-
-          echo "--- Verifying Node.js can read them ---"
-          node -e "
-            const key = process.env.ANTHROPIC_API_KEY || '';
-            const oaiKey = process.env.OPENAI_EMBEDDINGS_API_KEY || '';
-            console.log('ANTHROPIC_API_KEY via node: length=' + key.length + ', starts_with_sk_ant=' + key.startsWith('sk-ant-'));
-            console.log('OPENAI_EMBEDDINGS_API_KEY via node: length=' + oaiKey.length + ', starts_with_sk=' + oaiKey.startsWith('sk-'));
-          "
-
-      - name: Run integration tests
-        run: npx jest --verbose tests/integration.test.js
-
-  deploy:
-    name: Deploy to AWS App Runner
-    needs: test
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+  test-gateway:
+    name: Test — gateway
+    needs: detect-changes
+    if: needs.detect-changes.outputs.gateway == 'true'
     runs-on: ubuntu-latest
-
-    permissions:
-      contents: read
-      id-token: write
-
+    env:
+      NODE_ENV: test
+      JWT_SECRET: test-jwt-secret
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Verify AWS secrets are configured
-        run: |
-          missing=()
-          [ -z "$AWS_ROLE_ARN" ] && missing+=("AWS_ROLE_ARN")
-          [ -z "$AWS_REGION" ] && missing+=("AWS_REGION")
-          [ -z "$AWS_ACCOUNT_ID" ] && missing+=("AWS_ACCOUNT_ID")
-          [ -z "$APPRUNNER_SERVICE_ARN" ] && missing+=("APPRUNNER_SERVICE_ARN")
-          [ -z "$ECR_ACCESS_ROLE_ARN" ] && missing+=("ECR_ACCESS_ROLE_ARN")
-          if [ ${#missing[@]} -ne 0 ]; then
-            echo "ERROR: The following required secrets are not set in this repository:"
-            for s in "${missing[@]}"; do echo "  - $s"; done
-            echo ""
-            echo "Go to: Settings > Secrets and variables > Actions > New repository secret"
-            exit 1
-          fi
-        env:
-          AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
-          AWS_REGION: ${{ secrets.AWS_REGION }}
-          AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
-          APPRUNNER_SERVICE_ARN: ${{ secrets.APPRUNNER_SERVICE_ARN }}
-          ECR_ACCESS_ROLE_ARN: ${{ secrets.ECR_ACCESS_ROLE_ARN }}
-
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
-          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
-          aws-region: ${{ secrets.AWS_REGION }}
+          node-version: 20
+          cache: npm
+          cache-dependency-path: gateway/package.json
+      - run: npm install
+        working-directory: gateway
+      - run: npm test
+        working-directory: gateway
 
-      - name: Login to Amazon ECR
-        id: ecr-login
-        uses: aws-actions/amazon-ecr-login@v2
-
-      - name: Build and push Docker image
-        env:
-          ECR_REGISTRY: ${{ steps.ecr-login.outputs.registry }}
-          ECR_REPOSITORY: book-app
-          IMAGE_TAG: ${{ github.sha }}
+  # ---------------------------------------------------------------------------
+  # Step 4: E2E integration tests — run when any service changes
+  # ---------------------------------------------------------------------------
+  test-e2e:
+    name: Test — E2E Integration
+    needs: detect-changes
+    if: needs.detect-changes.outputs.any-service == 'true'
+    runs-on: ubuntu-latest
+    env:
+      NODE_ENV: test
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      OPENAI_EMBEDDINGS_API_KEY: ${{ secrets.OPENAI_EMBEDDINGS_API_KEY }}
+      CLAUDE_MODEL: claude-sonnet-4-20250514
+      EMBEDDING_MODEL: text-embedding-3-large
+      EMBEDDING_SIMILARITY_THRESHOLD: "0.48"
+      BOOKS_SERVICE_URL: http://localhost:3003
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install e2e deps
+        run: npm install
+        working-directory: e2e
+      - name: Install service deps (books + analysis + chat for direct imports)
         run: |
-          docker build \
-            -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG \
-            -t $ECR_REGISTRY/$ECR_REPOSITORY:latest \
-            .
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+          cd books-service && npm install
+          cd ../analysis-service && npm install
+          cd ../chat-service && npm install
+      - name: Run E2E integration tests
+        run: npm test
+        working-directory: e2e
 
-      - name: Deploy to App Runner
-        env:
-          APPRUNNER_SERVICE_ARN: ${{ secrets.APPRUNNER_SERVICE_ARN }}
-          ECR_ACCESS_ROLE_ARN: ${{ secrets.ECR_ACCESS_ROLE_ARN }}
-          ECR_REGISTRY: ${{ steps.ecr-login.outputs.registry }}
-          IMAGE_TAG: ${{ github.sha }}
+  # ---------------------------------------------------------------------------
+  # Step 5: Required gate — PR cannot merge unless all applicable tests pass
+  # ---------------------------------------------------------------------------
+  all-tests-pass:
+    name: All Relevant Tests Passed
+    needs:
+      - detect-changes
+      - test-auth-service
+      - test-favorites-service
+      - test-books-service
+      - test-analysis-service
+      - test-chat-service
+      - test-gateway
+      - test-e2e
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check results
         run: |
-          aws apprunner update-service \
-            --service-arn "$APPRUNNER_SERVICE_ARN" \
-            --source-configuration '{
-              "ImageRepository": {
-                "ImageIdentifier": "'"$ECR_REGISTRY/book-app:$IMAGE_TAG"'",
-                "ImageRepositoryType": "ECR",
-                "ImageConfiguration": {
-                  "Port": "8080"
-                }
-              },
-              "AutoDeploymentsEnabled": false,
-              "AuthenticationConfiguration": {
-                "AccessRoleArn": "'"$ECR_ACCESS_ROLE_ARN"'"
-              }
-            }' \
-            --health-check-configuration '{
-              "Protocol": "HTTP",
-              "Path": "/health",
-              "Interval": 10,
-              "Timeout": 5,
-              "HealthyThreshold": 1,
-              "UnhealthyThreshold": 5
-            }'
+          echo "auth-service:       ${{ needs.test-auth-service.result }}"
+          echo "favorites-service:  ${{ needs.test-favorites-service.result }}"
+          echo "books-service:      ${{ needs.test-books-service.result }}"
+          echo "analysis-service:   ${{ needs.test-analysis-service.result }}"
+          echo "chat-service:       ${{ needs.test-chat-service.result }}"
+          echo "gateway:            ${{ needs.test-gateway.result }}"
+          echo "e2e:                ${{ needs.test-e2e.result }}"
 
-          echo "Deployment triggered. Waiting for service to stabilize..."
-          for i in $(seq 1 30); do
-            STATUS=$(aws apprunner describe-service \
-              --service-arn "$APPRUNNER_SERVICE_ARN" \
-              --query "Service.Status" --output text)
-            echo "  Check $i/30: status=$STATUS"
-            if [ "$STATUS" = "RUNNING" ]; then
-              echo "Deployment complete — service is running."
-              exit 0
-            fi
-            if echo "$STATUS" | grep -q "FAILED"; then
-              echo "ERROR: service entered $STATUS state"
+          for result in \
+            "${{ needs.test-auth-service.result }}" \
+            "${{ needs.test-favorites-service.result }}" \
+            "${{ needs.test-books-service.result }}" \
+            "${{ needs.test-analysis-service.result }}" \
+            "${{ needs.test-chat-service.result }}" \
+            "${{ needs.test-gateway.result }}" \
+            "${{ needs.test-e2e.result }}"; do
+            if [ "$result" = "failure" ] || [ "$result" = "cancelled" ]; then
+              echo "One or more test jobs failed!"
               exit 1
             fi
-            sleep 20
           done
-          echo "Warning: timed out after 10 min — check App Runner console for status."
+
+          echo "All applicable tests passed or were correctly skipped."

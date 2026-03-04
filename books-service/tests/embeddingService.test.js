@@ -28,8 +28,6 @@ beforeEach(() => {
   }
 });
 
-// --- Cosine similarity is internal, but tested indirectly through findRelatedWords ---
-
 describe("findRelatedWords", () => {
   function vec(...components) {
     return components;
@@ -39,8 +37,6 @@ describe("findRelatedWords", () => {
     const instance = OpenAI.mock.results[0].value;
     mockCreate = instance.embeddings.create;
 
-    // concept = "flowers", words = ["rose", "car", "tulip"]
-    // Embeddings: concept=[1,0,0], rose=[0.9,0.1,0], car=[0,1,0], tulip=[0.8,0.2,0]
     mockCreate.mockResolvedValue({
       data: [
         { index: 0, embedding: vec(1, 0, 0) },
@@ -66,7 +62,6 @@ describe("findRelatedWords", () => {
     const instance = OpenAI.mock.results[0].value;
     mockCreate = instance.embeddings.create;
 
-    // All words are orthogonal to concept
     mockCreate.mockResolvedValue({
       data: [
         { index: 0, embedding: vec(1, 0, 0) },
@@ -112,7 +107,6 @@ describe("findRelatedWords", () => {
     const instance = OpenAI.mock.results[0].value;
     mockCreate = instance.embeddings.create;
 
-    // batchSize = 3, sending concept + 5 words = 6 items => 2 batches
     const embeddings = Array.from({ length: 6 }, (_, i) => ({
       index: i % 3,
       embedding: vec(1, 0, 0),
@@ -135,7 +129,6 @@ describe("findRelatedWords", () => {
     const instance = OpenAI.mock.results[0].value;
     mockCreate = instance.embeddings.create;
 
-    // Similarity will be 1.0 (identical vectors) — should pass default 0.5 threshold
     mockCreate.mockResolvedValue({
       data: [
         { index: 0, embedding: vec(1, 0) },

@@ -45,7 +45,6 @@ describe("countWordOccurrences", () => {
 
   test("word-boundary matching does not find non-word-char terms like $5.00", () => {
     const text = "It costs $5.00 total.";
-    // Single-word path uses \\b which won't match around non-word chars
     expect(
       gutenbergService.countWordOccurrences(text, "$5.00").count,
     ).toBe(0);
@@ -243,7 +242,6 @@ describe("countWordInBook", () => {
   afterEach(() => jest.restoreAllMocks());
 
   test("counts word in a real book flow", async () => {
-    // Mock search
     global.fetch = jest
       .fn()
       .mockResolvedValueOnce({
@@ -262,7 +260,6 @@ describe("countWordInBook", () => {
           ],
         }),
       })
-      // Mock text fetch
       .mockResolvedValueOnce({
         ok: true,
         text: async () =>

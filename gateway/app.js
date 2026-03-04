@@ -183,7 +183,11 @@ app.use((err, _req, res, _next) => {
   res.status(500).render("error", { error: err.message });
 });
 
-app.listen(config.server.port, () => {
-  console.log(`[gateway] Running on port ${config.server.port}`);
-  console.log(`[gateway] Environment: ${config.server.env}`);
-});
+if (require.main === module) {
+  app.listen(config.server.port, () => {
+    console.log(`[gateway] Running on port ${config.server.port}`);
+    console.log(`[gateway] Environment: ${config.server.env}`);
+  });
+}
+
+module.exports = app;

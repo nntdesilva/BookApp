@@ -19,6 +19,10 @@ app.use((err, _req, res, _next) => {
   res.status(500).json({ error: "Internal server error" });
 });
 
-app.listen(config.server.port, () => {
-  console.log(`[chat-service] Running on port ${config.server.port}`);
-});
+if (require.main === module) {
+  app.listen(config.server.port, () => {
+    console.log(`[chat-service] Running on port ${config.server.port}`);
+  });
+}
+
+module.exports = app;
