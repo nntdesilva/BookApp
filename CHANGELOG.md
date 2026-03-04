@@ -4,10 +4,18 @@ All notable changes to the BookApp project are documented in the [changelogs](./
 
 ## Quick Links
 
-- **[Latest Version: v0.10.2](./changelogs/v0.10.2.md)** - 2026-02-26
+- **[Latest Version: v0.11.1](./changelogs/v0.11.1.md)** - 2026-03-04
 - **[Version History](./changelogs/README.md)** - Browse all versions
 
 ## Recent Updates
+
+### [v0.11.1](./changelogs/v0.11.1.md) - 2026-03-04
+
+Testing: Migrated all unit tests from the monolith `tests/` directory into each microservice's own `tests/` folder. Rewrote tests that depended on the old architecture (Passport sessions, embedded `User.favorites`, direct Gutenberg calls in analysisService). Added e2e integration tests in `e2e/` that import service modules directly and use real API keys. Rewrote CI to run only the tests relevant to changed services per PR using `dorny/paths-filter`, with an `all-tests-pass` gate job as the required branch protection check.
+
+### [v0.11.0](./changelogs/v0.11.0.md) - 2026-03-04
+
+Architecture: Decomposed the Express.js monolith into seven independently deployable microservices (gateway, auth-service, favorites-service, books-service, analysis-service, chat-service, mcp-server). Authentication migrated from Passport.js sessions to JWT tokens with Redis-backed conversation state. The `User.favorites` sub-document was extracted into a standalone `Favorite` collection. All services are orchestrated via Docker Compose with shared MongoDB and Redis infrastructure.
 
 ### [v0.10.2](./changelogs/v0.10.2.md) - 2026-02-26
 

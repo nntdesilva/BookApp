@@ -5,87 +5,46 @@ on:
     branches:
       - main
     paths:
-      - "mcp-server.js"
-      - "Dockerfile.mcp"
-      - "services/favoriteService.js"
-      - "services/gutenbergService.js"
-      - "services/analysisService.js"
-      - "services/embeddingService.js"
-      - "config/database.js"
-      - "config/appConfig.js"
-      - "models/User.js"
-      - "package.json"
-      - "package-lock.json"
+      - "mcp-server/**"
       - ".github/workflows/deploy-mcp.yml"
   push:
     branches:
       - main
     paths:
-      - "mcp-server.js"
-      - "Dockerfile.mcp"
-      - "services/favoriteService.js"
-      - "services/gutenbergService.js"
-      - "services/analysisService.js"
-      - "services/embeddingService.js"
-      - "config/database.js"
-      - "config/appConfig.js"
-      - "models/User.js"
-      - "package.json"
-      - "package-lock.json"
+      - "mcp-server/**"
       - ".github/workflows/deploy-mcp.yml"
 
 jobs:
-  test:
-    name: Run MCP-related Tests
+  test-e2e-for-mcp:
+    name: Run E2E Tests (MCP delegates to services)
     runs-on: ubuntu-latest
-
-    services:
-      mongodb:
-        image: mongo:7
-        ports:
-          - 27017:27017
-        options: >-
-          --health-cmd "mongosh --eval 'db.runCommand({ ping: 1 })'"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-
     env:
       NODE_ENV: test
-      PORT: 3000
-      MONGODB_URI: mongodb://127.0.0.1:27017/bookapp_test
-      SESSION_SECRET: test-session-secret
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      OPENAI_EMBEDDINGS_API_KEY: ${{ secrets.OPENAI_EMBEDDINGS_API_KEY }}
       CLAUDE_MODEL: claude-sonnet-4-20250514
-      CLAUDE_TEMPERATURE: "0.7"
-      CLAUDE_MAX_TOKENS: "4096"
-      MAX_HISTORY_MESSAGES: "15"
       EMBEDDING_MODEL: text-embedding-3-large
       EMBEDDING_SIMILARITY_THRESHOLD: "0.48"
-      OPENAI_EMBEDDINGS_API_KEY: ${{ secrets.OPENAI_EMBEDDINGS_API_KEY }}
-      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: npm
 
-      - name: Install dependencies
-        run: npm ci
+      - name: Install e2e + service deps
+        run: |
+          cd e2e && npm install
+          cd ../books-service && npm install
+          cd ../analysis-service && npm install
+          cd ../chat-service && npm install
 
-      - name: Run unit tests
-        run: npx jest --verbose --testPathIgnorePatterns="tests/integration.test.js"
-
-      - name: Run integration tests
-        run: npx jest --verbose tests/integration.test.js
+      - name: Run E2E integration tests
+        run: npm test
+        working-directory: e2e
 
   deploy:
     name: Deploy MCP Server to AWS App Runner
-    needs: test
+    needs: test-e2e-for-mcp
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
 
@@ -94,8 +53,7 @@ jobs:
       id-token: write
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Verify AWS secrets for MCP
         run: |
@@ -108,8 +66,6 @@ jobs:
           if [ ${#missing[@]} -ne 0 ]; then
             echo "ERROR: Missing secrets for MCP deployment:"
             for s in "${missing[@]}"; do echo "  - $s"; done
-            echo ""
-            echo "Go to: Settings > Secrets and variables > Actions > New repository secret"
             exit 1
           fi
         env:
@@ -136,10 +92,10 @@ jobs:
           IMAGE_TAG: ${{ github.sha }}
         run: |
           docker build \
-            -f Dockerfile.mcp \
+            -f mcp-server/Dockerfile \
             -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG \
             -t $ECR_REGISTRY/$ECR_REPOSITORY:latest \
-            .
+            ./mcp-server
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
 

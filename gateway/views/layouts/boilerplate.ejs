@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Bibliotheque - A Literary Collection</title>
+    <script>
+      (function(){var t=document.documentElement;if(typeof localStorage!=="undefined"){var s=localStorage.getItem("theme");if(s==="dark"||s==="light"){t.setAttribute("data-theme",s);}}})();
+    </script>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="stylesheet" href="/css/style.css" />
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+    />
+  </head>
+  <body>
+    <label class="theme-switch" title="Toggle dark mode">
+      <input type="checkbox" id="themeToggle" />
+      <span class="theme-slider">
+        <i class="fas fa-sun"></i>
+        <i class="fas fa-moon"></i>
+      </span>
+    </label>
+    <div class="container">
+      <% if (typeof currentUser !== 'undefined' && currentUser) { %>
+      <nav class="navbar">
+        <div></div>
+        <div class="navbar-user">
+          <span class="navbar-username">
+            Signed in as <strong><%= currentUser.username %></strong>
+          </span>
+          <form action="/logout" method="POST" style="display: inline">
+            <button type="submit" class="logout-button">
+              <i class="fas fa-sign-out-alt"></i> Logout
+            </button>
+          </form>
+        </div>
+      </nav>
+      <% } %> <%- body %>
+    </div>
+    <script>
+      (function () {
+        var html = document.documentElement;
+        var isLoggedIn = <%= (typeof currentUser !== 'undefined' && currentUser) ? 'true' : 'false' %>;
+        var stored = typeof localStorage !== "undefined" ? localStorage.getItem("theme") : null;
+        if (stored === "dark" || stored === "light") html.setAttribute("data-theme", stored);
+        var cb = document.getElementById("themeToggle");
+        if (!cb) return;
+        cb.checked = html.getAttribute("data-theme") === "dark";
+        cb.addEventListener("change", function () {
+          var next = cb.checked ? "dark" : "light";
+          html.setAttribute("data-theme", next);
+          if (typeof localStorage !== "undefined") localStorage.setItem("theme", next);
+          if (isLoggedIn) fetch("/api/dark-mode", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ darkMode: cb.checked }) });
+        });
+      })();
+    </script>
+  </body>
+</html>
