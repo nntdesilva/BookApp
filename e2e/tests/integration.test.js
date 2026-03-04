@@ -22,6 +22,33 @@ const aiService = require("../../chat-service/services/aiService");
 jest.setTimeout(180_000);
 
 // ---------------------------------------------------------------------------
+// Bridge: analysisService calls the books-service via HTTP, but in e2e tests
+// the services aren't running as actual servers — we import modules directly.
+// Intercept fetch calls to the books-service URL and delegate to the
+// gutenbergService module instead, keeping the test fully integration-style.
+// ---------------------------------------------------------------------------
+const BOOKS_URL = process.env.BOOKS_SERVICE_URL || "http://localhost:3003";
+const _originalFetch = global.fetch;
+
+beforeAll(() => {
+  global.fetch = async (url, options) => {
+    if (typeof url === "string" && url.startsWith(BOOKS_URL)) {
+      const pathname = new URL(url).pathname;
+      if (pathname.endsWith("/api/books/text")) {
+        const body = JSON.parse(options?.body || "{}");
+        const result = await gutenbergService.getBookFullText(body.bookTitle);
+        return { ok: true, json: async () => result };
+      }
+    }
+    return _originalFetch(url, options);
+  };
+});
+
+afterAll(() => {
+  global.fetch = _originalFetch;
+});
+
+// ---------------------------------------------------------------------------
 // 1. Gutenberg Service (network only — no API keys)
 // ---------------------------------------------------------------------------
 
