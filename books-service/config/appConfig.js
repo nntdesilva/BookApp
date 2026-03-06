@@ -4,7 +4,7 @@ module.exports = {
     env: process.env.NODE_ENV || "development",
   },
   embedding: {
-    apiKey: process.env.OPENAI_API_KEY,
+    apiKey: process.env.OPENAI_EMBEDDINGS_API_KEY,
     model: process.env.EMBEDDING_MODEL || "text-embedding-3-large",
     similarityThreshold:
       parseFloat(process.env.EMBEDDING_SIMILARITY_THRESHOLD) || 0.55,

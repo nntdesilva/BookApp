@@ -7,9 +7,9 @@
 const OpenAI = require("openai");
 const config = require("../config/appConfig");
 
-const openai = new OpenAI({
-  apiKey: config.embedding.apiKey,
-});
+const openai = config.embedding.apiKey
+  ? new OpenAI({ apiKey: config.embedding.apiKey })
+  : null;
 
 /**
  * Generate embeddings for an array of texts using OpenAI's embedding API
