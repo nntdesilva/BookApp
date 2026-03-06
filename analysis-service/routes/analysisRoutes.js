@@ -5,12 +5,21 @@ const config = require("../config/appConfig");
 
 const router = express.Router();
 
-let redis;
-try {
-  redis = new Redis(config.redis.url);
-} catch (err) {
-  console.warn("[analysis-service] Redis not available, caching disabled");
-}
+let redis = null;
+
+const _redisClient = new Redis(config.redis.url, {
+  enableOfflineQueue: false,
+  retryStrategy: () => null,
+});
+
+_redisClient.on("ready", () => {
+  redis = _redisClient;
+  console.log("[analysis-service] Redis connected, caching enabled");
+});
+
+_redisClient.on("error", () => {
+  redis = null;
+});
 
 router.post("/analyze", async (req, res) => {
   try {
