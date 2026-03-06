@@ -4,6 +4,7 @@ jest.mock("ioredis", () => {
     set: jest.fn(),
     del: jest.fn(),
     on: jest.fn(),
+    connect: jest.fn().mockResolvedValue(undefined),
   }));
 });
 
@@ -16,6 +17,7 @@ jest.mock("../clients/analysisClient");
 jest.mock("../config/appConfig", () => ({
   claude: { apiKey: "test-key" },
   conversation: { maxHistoryMessages: 15 },
+  redis: { url: "redis://localhost:6379" },
   services: {
     favoritesUrl: "http://localhost:3002",
     booksUrl: "http://localhost:3003",
