@@ -1,5 +1,6 @@
 node_modules/
 .env
+dev.sh
 .DS_Store
 *.log
 md_understand/

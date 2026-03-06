@@ -1,5 +1,10 @@
 const express = require("express");
-require("dotenv").config();
+const path = require("path");
+
+// Load .env from project root (books-service runs from its own dir)
+require("dotenv").config({
+  path: path.join(__dirname, "..", ".env"),
+});
 
 const config = require("./config/appConfig");
 const booksRoutes = require("./routes/booksRoutes");
