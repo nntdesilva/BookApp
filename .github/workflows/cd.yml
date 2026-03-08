@@ -1,0 +1,747 @@
+name: CD
+
+# Triggers only after the CI workflow completes successfully on main.
+# This guarantees every deployment has passed all tests.
+on:
+  workflow_run:
+    workflows: ["CI"]
+    branches: [main]
+    types: [completed]
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Step 1: Detect which services changed in the merged commit
+  # ---------------------------------------------------------------------------
+  detect-changes:
+    name: Detect Changed Services
+    runs-on: ubuntu-latest
+    if: github.event.workflow_run.conclusion == 'success'
+    outputs:
+      gateway: ${{ steps.filter.outputs.gateway }}
+      auth: ${{ steps.filter.outputs.auth }}
+      favorites: ${{ steps.filter.outputs.favorites }}
+      books: ${{ steps.filter.outputs.books }}
+      analysis: ${{ steps.filter.outputs.analysis }}
+      chat: ${{ steps.filter.outputs.chat }}
+      mcp: ${{ steps.filter.outputs.mcp }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 2
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            gateway:
+              - 'gateway/**'
+              - '.github/workflows/cd.yml'
+            auth:
+              - 'auth-service/**'
+            favorites:
+              - 'favorites-service/**'
+            books:
+              - 'books-service/**'
+            analysis:
+              - 'analysis-service/**'
+            chat:
+              - 'chat-service/**'
+            mcp:
+              - 'mcp-server/**'
+
+  # ---------------------------------------------------------------------------
+  # Step 2: Deploy each service independently (only when its files changed)
+  # ---------------------------------------------------------------------------
+
+  deploy-gateway:
+    name: Deploy — gateway
+    needs: detect-changes
+    if: needs.detect-changes.outputs.gateway == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+
+      - name: Verify required secrets
+        run: |
+          missing=()
+          [ -z "$AWS_ROLE_ARN" ]                  && missing+=("AWS_ROLE_ARN")
+          [ -z "$AWS_REGION" ]                    && missing+=("AWS_REGION")
+          [ -z "$ECR_ACCESS_ROLE_ARN" ]           && missing+=("ECR_ACCESS_ROLE_ARN")
+          [ -z "$GATEWAY_APPRUNNER_SERVICE_ARN" ] && missing+=("GATEWAY_APPRUNNER_SERVICE_ARN")
+          if [ ${#missing[@]} -ne 0 ]; then
+            echo "ERROR: Missing GitHub secrets:"
+            for s in "${missing[@]}"; do echo "  - $s"; done
+            exit 1
+          fi
+        env:
+          AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+          ECR_ACCESS_ROLE_ARN: ${{ secrets.ECR_ACCESS_ROLE_ARN }}
+          GATEWAY_APPRUNNER_SERVICE_ARN: ${{ secrets.GATEWAY_APPRUNNER_SERVICE_ARN }}
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: ecr-login
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push gateway image
+        env:
+          ECR_REGISTRY: ${{ steps.ecr-login.outputs.registry }}
+          ECR_REPOSITORY: book-app
+          IMAGE_TAG: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          docker build \
+            -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG \
+            -t $ECR_REGISTRY/$ECR_REPOSITORY:latest \
+            ./gateway
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+
+      - name: Deploy gateway to App Runner
+        env:
+          APPRUNNER_SERVICE_ARN: ${{ secrets.GATEWAY_APPRUNNER_SERVICE_ARN }}
+          ECR_ACCESS_ROLE_ARN: ${{ secrets.ECR_ACCESS_ROLE_ARN }}
+          ECR_REGISTRY: ${{ steps.ecr-login.outputs.registry }}
+          IMAGE_TAG: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          aws apprunner update-service \
+            --service-arn "$APPRUNNER_SERVICE_ARN" \
+            --source-configuration '{
+              "ImageRepository": {
+                "ImageIdentifier": "'"$ECR_REGISTRY/book-app:$IMAGE_TAG"'",
+                "ImageRepositoryType": "ECR",
+                "ImageConfiguration": { "Port": "3000" }
+              },
+              "AutoDeploymentsEnabled": false,
+              "AuthenticationConfiguration": { "AccessRoleArn": "'"$ECR_ACCESS_ROLE_ARN"'" }
+            }' \
+            --health-check-configuration '{
+              "Protocol": "HTTP",
+              "Path": "/health",
+              "Interval": 10,
+              "Timeout": 5,
+              "HealthyThreshold": 1,
+              "UnhealthyThreshold": 5
+            }'
+
+          echo "Deployment triggered. Waiting for gateway to reach RUNNING state..."
+          for i in $(seq 1 30); do
+            STATUS=$(aws apprunner describe-service \
+              --service-arn "$APPRUNNER_SERVICE_ARN" \
+              --query "Service.Status" --output text)
+            echo "  Check $i/30: status=$STATUS"
+            if [ "$STATUS" = "RUNNING" ]; then
+              echo "gateway deployment complete."
+              exit 0
+            fi
+            if echo "$STATUS" | grep -q "FAILED"; then
+              echo "ERROR: gateway entered $STATUS state."
+              exit 1
+            fi
+            sleep 20
+          done
+          echo "Warning: timed out after 10 min — check App Runner console."
+
+  deploy-auth:
+    name: Deploy — auth-service
+    needs: detect-changes
+    if: needs.detect-changes.outputs.auth == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+
+      - name: Verify required secrets
+        run: |
+          missing=()
+          [ -z "$AWS_ROLE_ARN" ]                && missing+=("AWS_ROLE_ARN")
+          [ -z "$AWS_REGION" ]                  && missing+=("AWS_REGION")
+          [ -z "$ECR_ACCESS_ROLE_ARN" ]         && missing+=("ECR_ACCESS_ROLE_ARN")
+          [ -z "$AUTH_APPRUNNER_SERVICE_ARN" ]  && missing+=("AUTH_APPRUNNER_SERVICE_ARN")
+          if [ ${#missing[@]} -ne 0 ]; then
+            echo "ERROR: Missing GitHub secrets:"
+            for s in "${missing[@]}"; do echo "  - $s"; done
+            exit 1
+          fi
+        env:
+          AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+          ECR_ACCESS_ROLE_ARN: ${{ secrets.ECR_ACCESS_ROLE_ARN }}
+          AUTH_APPRUNNER_SERVICE_ARN: ${{ secrets.AUTH_APPRUNNER_SERVICE_ARN }}
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: ecr-login
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push auth-service image
+        env:
+          ECR_REGISTRY: ${{ steps.ecr-login.outputs.registry }}
+          ECR_REPOSITORY: book-app-auth
+          IMAGE_TAG: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          docker build \
+            -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG \
+            -t $ECR_REGISTRY/$ECR_REPOSITORY:latest \
+            ./auth-service
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+
+      - name: Deploy auth-service to App Runner
+        env:
+          APPRUNNER_SERVICE_ARN: ${{ secrets.AUTH_APPRUNNER_SERVICE_ARN }}
+          ECR_ACCESS_ROLE_ARN: ${{ secrets.ECR_ACCESS_ROLE_ARN }}
+          ECR_REGISTRY: ${{ steps.ecr-login.outputs.registry }}
+          IMAGE_TAG: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          aws apprunner update-service \
+            --service-arn "$APPRUNNER_SERVICE_ARN" \
+            --source-configuration '{
+              "ImageRepository": {
+                "ImageIdentifier": "'"$ECR_REGISTRY/book-app-auth:$IMAGE_TAG"'",
+                "ImageRepositoryType": "ECR",
+                "ImageConfiguration": { "Port": "3001" }
+              },
+              "AutoDeploymentsEnabled": false,
+              "AuthenticationConfiguration": { "AccessRoleArn": "'"$ECR_ACCESS_ROLE_ARN"'" }
+            }' \
+            --health-check-configuration '{
+              "Protocol": "HTTP",
+              "Path": "/health",
+              "Interval": 10,
+              "Timeout": 5,
+              "HealthyThreshold": 1,
+              "UnhealthyThreshold": 5
+            }'
+
+          echo "Deployment triggered. Waiting for auth-service to reach RUNNING state..."
+          for i in $(seq 1 30); do
+            STATUS=$(aws apprunner describe-service \
+              --service-arn "$APPRUNNER_SERVICE_ARN" \
+              --query "Service.Status" --output text)
+            echo "  Check $i/30: status=$STATUS"
+            if [ "$STATUS" = "RUNNING" ]; then
+              echo "auth-service deployment complete."
+              exit 0
+            fi
+            if echo "$STATUS" | grep -q "FAILED"; then
+              echo "ERROR: auth-service entered $STATUS state."
+              exit 1
+            fi
+            sleep 20
+          done
+          echo "Warning: timed out after 10 min — check App Runner console."
+
+  deploy-favorites:
+    name: Deploy — favorites-service
+    needs: detect-changes
+    if: needs.detect-changes.outputs.favorites == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+
+      - name: Verify required secrets
+        run: |
+          missing=()
+          [ -z "$AWS_ROLE_ARN" ]                     && missing+=("AWS_ROLE_ARN")
+          [ -z "$AWS_REGION" ]                       && missing+=("AWS_REGION")
+          [ -z "$ECR_ACCESS_ROLE_ARN" ]              && missing+=("ECR_ACCESS_ROLE_ARN")
+          [ -z "$FAVORITES_APPRUNNER_SERVICE_ARN" ]  && missing+=("FAVORITES_APPRUNNER_SERVICE_ARN")
+          if [ ${#missing[@]} -ne 0 ]; then
+            echo "ERROR: Missing GitHub secrets:"
+            for s in "${missing[@]}"; do echo "  - $s"; done
+            exit 1
+          fi
+        env:
+          AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+          ECR_ACCESS_ROLE_ARN: ${{ secrets.ECR_ACCESS_ROLE_ARN }}
+          FAVORITES_APPRUNNER_SERVICE_ARN: ${{ secrets.FAVORITES_APPRUNNER_SERVICE_ARN }}
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: ecr-login
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push favorites-service image
+        env:
+          ECR_REGISTRY: ${{ steps.ecr-login.outputs.registry }}
+          ECR_REPOSITORY: book-app-favorites
+          IMAGE_TAG: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          docker build \
+            -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG \
+            -t $ECR_REGISTRY/$ECR_REPOSITORY:latest \
+            ./favorites-service
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+
+      - name: Deploy favorites-service to App Runner
+        env:
+          APPRUNNER_SERVICE_ARN: ${{ secrets.FAVORITES_APPRUNNER_SERVICE_ARN }}
+          ECR_ACCESS_ROLE_ARN: ${{ secrets.ECR_ACCESS_ROLE_ARN }}
+          ECR_REGISTRY: ${{ steps.ecr-login.outputs.registry }}
+          IMAGE_TAG: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          aws apprunner update-service \
+            --service-arn "$APPRUNNER_SERVICE_ARN" \
+            --source-configuration '{
+              "ImageRepository": {
+                "ImageIdentifier": "'"$ECR_REGISTRY/book-app-favorites:$IMAGE_TAG"'",
+                "ImageRepositoryType": "ECR",
+                "ImageConfiguration": { "Port": "3002" }
+              },
+              "AutoDeploymentsEnabled": false,
+              "AuthenticationConfiguration": { "AccessRoleArn": "'"$ECR_ACCESS_ROLE_ARN"'" }
+            }' \
+            --health-check-configuration '{
+              "Protocol": "HTTP",
+              "Path": "/health",
+              "Interval": 10,
+              "Timeout": 5,
+              "HealthyThreshold": 1,
+              "UnhealthyThreshold": 5
+            }'
+
+          echo "Deployment triggered. Waiting for favorites-service to reach RUNNING state..."
+          for i in $(seq 1 30); do
+            STATUS=$(aws apprunner describe-service \
+              --service-arn "$APPRUNNER_SERVICE_ARN" \
+              --query "Service.Status" --output text)
+            echo "  Check $i/30: status=$STATUS"
+            if [ "$STATUS" = "RUNNING" ]; then
+              echo "favorites-service deployment complete."
+              exit 0
+            fi
+            if echo "$STATUS" | grep -q "FAILED"; then
+              echo "ERROR: favorites-service entered $STATUS state."
+              exit 1
+            fi
+            sleep 20
+          done
+          echo "Warning: timed out after 10 min — check App Runner console."
+
+  deploy-books:
+    name: Deploy — books-service
+    needs: detect-changes
+    if: needs.detect-changes.outputs.books == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+
+      - name: Verify required secrets
+        run: |
+          missing=()
+          [ -z "$AWS_ROLE_ARN" ]                  && missing+=("AWS_ROLE_ARN")
+          [ -z "$AWS_REGION" ]                    && missing+=("AWS_REGION")
+          [ -z "$ECR_ACCESS_ROLE_ARN" ]           && missing+=("ECR_ACCESS_ROLE_ARN")
+          [ -z "$BOOKS_APPRUNNER_SERVICE_ARN" ]   && missing+=("BOOKS_APPRUNNER_SERVICE_ARN")
+          if [ ${#missing[@]} -ne 0 ]; then
+            echo "ERROR: Missing GitHub secrets:"
+            for s in "${missing[@]}"; do echo "  - $s"; done
+            exit 1
+          fi
+        env:
+          AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+          ECR_ACCESS_ROLE_ARN: ${{ secrets.ECR_ACCESS_ROLE_ARN }}
+          BOOKS_APPRUNNER_SERVICE_ARN: ${{ secrets.BOOKS_APPRUNNER_SERVICE_ARN }}
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: ecr-login
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push books-service image
+        env:
+          ECR_REGISTRY: ${{ steps.ecr-login.outputs.registry }}
+          ECR_REPOSITORY: book-app-books
+          IMAGE_TAG: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          docker build \
+            -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG \
+            -t $ECR_REGISTRY/$ECR_REPOSITORY:latest \
+            ./books-service
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+
+      - name: Deploy books-service to App Runner
+        env:
+          APPRUNNER_SERVICE_ARN: ${{ secrets.BOOKS_APPRUNNER_SERVICE_ARN }}
+          ECR_ACCESS_ROLE_ARN: ${{ secrets.ECR_ACCESS_ROLE_ARN }}
+          ECR_REGISTRY: ${{ steps.ecr-login.outputs.registry }}
+          IMAGE_TAG: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          aws apprunner update-service \
+            --service-arn "$APPRUNNER_SERVICE_ARN" \
+            --source-configuration '{
+              "ImageRepository": {
+                "ImageIdentifier": "'"$ECR_REGISTRY/book-app-books:$IMAGE_TAG"'",
+                "ImageRepositoryType": "ECR",
+                "ImageConfiguration": { "Port": "3003" }
+              },
+              "AutoDeploymentsEnabled": false,
+              "AuthenticationConfiguration": { "AccessRoleArn": "'"$ECR_ACCESS_ROLE_ARN"'" }
+            }' \
+            --health-check-configuration '{
+              "Protocol": "HTTP",
+              "Path": "/health",
+              "Interval": 10,
+              "Timeout": 5,
+              "HealthyThreshold": 1,
+              "UnhealthyThreshold": 5
+            }'
+
+          echo "Deployment triggered. Waiting for books-service to reach RUNNING state..."
+          for i in $(seq 1 30); do
+            STATUS=$(aws apprunner describe-service \
+              --service-arn "$APPRUNNER_SERVICE_ARN" \
+              --query "Service.Status" --output text)
+            echo "  Check $i/30: status=$STATUS"
+            if [ "$STATUS" = "RUNNING" ]; then
+              echo "books-service deployment complete."
+              exit 0
+            fi
+            if echo "$STATUS" | grep -q "FAILED"; then
+              echo "ERROR: books-service entered $STATUS state."
+              exit 1
+            fi
+            sleep 20
+          done
+          echo "Warning: timed out after 10 min — check App Runner console."
+
+  deploy-analysis:
+    name: Deploy — analysis-service
+    needs: detect-changes
+    if: needs.detect-changes.outputs.analysis == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+
+      - name: Verify required secrets
+        run: |
+          missing=()
+          [ -z "$AWS_ROLE_ARN" ]                    && missing+=("AWS_ROLE_ARN")
+          [ -z "$AWS_REGION" ]                      && missing+=("AWS_REGION")
+          [ -z "$ECR_ACCESS_ROLE_ARN" ]             && missing+=("ECR_ACCESS_ROLE_ARN")
+          [ -z "$ANALYSIS_APPRUNNER_SERVICE_ARN" ]  && missing+=("ANALYSIS_APPRUNNER_SERVICE_ARN")
+          if [ ${#missing[@]} -ne 0 ]; then
+            echo "ERROR: Missing GitHub secrets:"
+            for s in "${missing[@]}"; do echo "  - $s"; done
+            exit 1
+          fi
+        env:
+          AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+          ECR_ACCESS_ROLE_ARN: ${{ secrets.ECR_ACCESS_ROLE_ARN }}
+          ANALYSIS_APPRUNNER_SERVICE_ARN: ${{ secrets.ANALYSIS_APPRUNNER_SERVICE_ARN }}
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: ecr-login
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push analysis-service image
+        env:
+          ECR_REGISTRY: ${{ steps.ecr-login.outputs.registry }}
+          ECR_REPOSITORY: book-app-analysis
+          IMAGE_TAG: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          docker build \
+            -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG \
+            -t $ECR_REGISTRY/$ECR_REPOSITORY:latest \
+            ./analysis-service
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+
+      - name: Deploy analysis-service to App Runner
+        env:
+          APPRUNNER_SERVICE_ARN: ${{ secrets.ANALYSIS_APPRUNNER_SERVICE_ARN }}
+          ECR_ACCESS_ROLE_ARN: ${{ secrets.ECR_ACCESS_ROLE_ARN }}
+          ECR_REGISTRY: ${{ steps.ecr-login.outputs.registry }}
+          IMAGE_TAG: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          aws apprunner update-service \
+            --service-arn "$APPRUNNER_SERVICE_ARN" \
+            --source-configuration '{
+              "ImageRepository": {
+                "ImageIdentifier": "'"$ECR_REGISTRY/book-app-analysis:$IMAGE_TAG"'",
+                "ImageRepositoryType": "ECR",
+                "ImageConfiguration": { "Port": "3004" }
+              },
+              "AutoDeploymentsEnabled": false,
+              "AuthenticationConfiguration": { "AccessRoleArn": "'"$ECR_ACCESS_ROLE_ARN"'" }
+            }' \
+            --health-check-configuration '{
+              "Protocol": "HTTP",
+              "Path": "/health",
+              "Interval": 10,
+              "Timeout": 5,
+              "HealthyThreshold": 1,
+              "UnhealthyThreshold": 5
+            }'
+
+          echo "Deployment triggered. Waiting for analysis-service to reach RUNNING state..."
+          for i in $(seq 1 30); do
+            STATUS=$(aws apprunner describe-service \
+              --service-arn "$APPRUNNER_SERVICE_ARN" \
+              --query "Service.Status" --output text)
+            echo "  Check $i/30: status=$STATUS"
+            if [ "$STATUS" = "RUNNING" ]; then
+              echo "analysis-service deployment complete."
+              exit 0
+            fi
+            if echo "$STATUS" | grep -q "FAILED"; then
+              echo "ERROR: analysis-service entered $STATUS state."
+              exit 1
+            fi
+            sleep 20
+          done
+          echo "Warning: timed out after 10 min — check App Runner console."
+
+  deploy-chat:
+    name: Deploy — chat-service
+    needs: detect-changes
+    if: needs.detect-changes.outputs.chat == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+
+      - name: Verify required secrets
+        run: |
+          missing=()
+          [ -z "$AWS_ROLE_ARN" ]                 && missing+=("AWS_ROLE_ARN")
+          [ -z "$AWS_REGION" ]                   && missing+=("AWS_REGION")
+          [ -z "$ECR_ACCESS_ROLE_ARN" ]          && missing+=("ECR_ACCESS_ROLE_ARN")
+          [ -z "$CHAT_APPRUNNER_SERVICE_ARN" ]   && missing+=("CHAT_APPRUNNER_SERVICE_ARN")
+          if [ ${#missing[@]} -ne 0 ]; then
+            echo "ERROR: Missing GitHub secrets:"
+            for s in "${missing[@]}"; do echo "  - $s"; done
+            exit 1
+          fi
+        env:
+          AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+          ECR_ACCESS_ROLE_ARN: ${{ secrets.ECR_ACCESS_ROLE_ARN }}
+          CHAT_APPRUNNER_SERVICE_ARN: ${{ secrets.CHAT_APPRUNNER_SERVICE_ARN }}
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: ecr-login
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push chat-service image
+        env:
+          ECR_REGISTRY: ${{ steps.ecr-login.outputs.registry }}
+          ECR_REPOSITORY: book-app-chat
+          IMAGE_TAG: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          docker build \
+            -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG \
+            -t $ECR_REGISTRY/$ECR_REPOSITORY:latest \
+            ./chat-service
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+
+      - name: Deploy chat-service to App Runner
+        env:
+          APPRUNNER_SERVICE_ARN: ${{ secrets.CHAT_APPRUNNER_SERVICE_ARN }}
+          ECR_ACCESS_ROLE_ARN: ${{ secrets.ECR_ACCESS_ROLE_ARN }}
+          ECR_REGISTRY: ${{ steps.ecr-login.outputs.registry }}
+          IMAGE_TAG: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          aws apprunner update-service \
+            --service-arn "$APPRUNNER_SERVICE_ARN" \
+            --source-configuration '{
+              "ImageRepository": {
+                "ImageIdentifier": "'"$ECR_REGISTRY/book-app-chat:$IMAGE_TAG"'",
+                "ImageRepositoryType": "ECR",
+                "ImageConfiguration": { "Port": "3005" }
+              },
+              "AutoDeploymentsEnabled": false,
+              "AuthenticationConfiguration": { "AccessRoleArn": "'"$ECR_ACCESS_ROLE_ARN"'" }
+            }' \
+            --health-check-configuration '{
+              "Protocol": "HTTP",
+              "Path": "/health",
+              "Interval": 10,
+              "Timeout": 5,
+              "HealthyThreshold": 1,
+              "UnhealthyThreshold": 5
+            }'
+
+          echo "Deployment triggered. Waiting for chat-service to reach RUNNING state..."
+          for i in $(seq 1 30); do
+            STATUS=$(aws apprunner describe-service \
+              --service-arn "$APPRUNNER_SERVICE_ARN" \
+              --query "Service.Status" --output text)
+            echo "  Check $i/30: status=$STATUS"
+            if [ "$STATUS" = "RUNNING" ]; then
+              echo "chat-service deployment complete."
+              exit 0
+            fi
+            if echo "$STATUS" | grep -q "FAILED"; then
+              echo "ERROR: chat-service entered $STATUS state."
+              exit 1
+            fi
+            sleep 20
+          done
+          echo "Warning: timed out after 10 min — check App Runner console."
+
+  deploy-mcp:
+    name: Deploy — mcp-server
+    needs: detect-changes
+    if: needs.detect-changes.outputs.mcp == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+
+      - name: Verify required secrets
+        run: |
+          missing=()
+          [ -z "$AWS_ROLE_ARN" ]               && missing+=("AWS_ROLE_ARN")
+          [ -z "$AWS_REGION" ]                 && missing+=("AWS_REGION")
+          [ -z "$ECR_ACCESS_ROLE_ARN" ]        && missing+=("ECR_ACCESS_ROLE_ARN")
+          [ -z "$MCP_APPRUNNER_SERVICE_ARN" ]  && missing+=("MCP_APPRUNNER_SERVICE_ARN")
+          if [ ${#missing[@]} -ne 0 ]; then
+            echo "ERROR: Missing GitHub secrets:"
+            for s in "${missing[@]}"; do echo "  - $s"; done
+            exit 1
+          fi
+        env:
+          AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+          ECR_ACCESS_ROLE_ARN: ${{ secrets.ECR_ACCESS_ROLE_ARN }}
+          MCP_APPRUNNER_SERVICE_ARN: ${{ secrets.MCP_APPRUNNER_SERVICE_ARN }}
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: ecr-login
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push mcp-server image
+        env:
+          ECR_REGISTRY: ${{ steps.ecr-login.outputs.registry }}
+          ECR_REPOSITORY: book-app-mcp
+          IMAGE_TAG: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          docker build \
+            -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG \
+            -t $ECR_REGISTRY/$ECR_REPOSITORY:latest \
+            ./mcp-server
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+
+      - name: Deploy mcp-server to App Runner
+        env:
+          APPRUNNER_SERVICE_ARN: ${{ secrets.MCP_APPRUNNER_SERVICE_ARN }}
+          ECR_ACCESS_ROLE_ARN: ${{ secrets.ECR_ACCESS_ROLE_ARN }}
+          ECR_REGISTRY: ${{ steps.ecr-login.outputs.registry }}
+          IMAGE_TAG: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          aws apprunner update-service \
+            --service-arn "$APPRUNNER_SERVICE_ARN" \
+            --source-configuration '{
+              "ImageRepository": {
+                "ImageIdentifier": "'"$ECR_REGISTRY/book-app-mcp:$IMAGE_TAG"'",
+                "ImageRepositoryType": "ECR",
+                "ImageConfiguration": { "Port": "3006" }
+              },
+              "AutoDeploymentsEnabled": false,
+              "AuthenticationConfiguration": { "AccessRoleArn": "'"$ECR_ACCESS_ROLE_ARN"'" }
+            }' \
+            --health-check-configuration '{
+              "Protocol": "HTTP",
+              "Path": "/health",
+              "Interval": 10,
+              "Timeout": 5,
+              "HealthyThreshold": 1,
+              "UnhealthyThreshold": 5
+            }'
+
+          echo "Deployment triggered. Waiting for mcp-server to reach RUNNING state..."
+          for i in $(seq 1 30); do
+            STATUS=$(aws apprunner describe-service \
+              --service-arn "$APPRUNNER_SERVICE_ARN" \
+              --query "Service.Status" --output text)
+            echo "  Check $i/30: status=$STATUS"
+            if [ "$STATUS" = "RUNNING" ]; then
+              echo "mcp-server deployment complete."
+              exit 0
+            fi
+            if echo "$STATUS" | grep -q "FAILED"; then
+              echo "ERROR: mcp-server entered $STATUS state."
+              exit 1
+            fi
+            sleep 20
+          done
+          echo "Warning: timed out after 10 min — check App Runner console."
