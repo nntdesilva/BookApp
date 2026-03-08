@@ -1,3 +1,11 @@
+# Local git hooks
+.githooks/
+
+# IDE / AI assistant personal config
+.cursor/
+.claude/
+.mcp.json
+
 node_modules/
 .env
 dev.sh
