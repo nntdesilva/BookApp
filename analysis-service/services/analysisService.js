@@ -8,9 +8,14 @@ const Anthropic = require("@anthropic-ai/sdk");
 const { toFile } = require("@anthropic-ai/sdk");
 const config = require("../config/appConfig");
 
-const anthropic = new Anthropic({
-  apiKey: config.claude.apiKey,
-});
+let _anthropic = null;
+
+function getClient() {
+  if (!_anthropic) {
+    _anthropic = new Anthropic({ apiKey: config.claude.apiKey });
+  }
+  return _anthropic;
+}
 
 async function fetchBookText(bookTitle) {
   const response = await fetch(`${config.services.booksUrl}/api/books/text`, {
@@ -70,7 +75,7 @@ async function analyzeBookStatistics(bookTitle, question) {
     // Upload book text via Files API so it goes directly into the code
     // execution container's filesystem — avoids context window limits
     // for very large books (e.g. Bleak House at ~1M characters).
-    const uploadedFile = await anthropic.beta.files.upload({
+    const uploadedFile = await getClient().beta.files.upload({
       file: await toFile(
         Buffer.from(bookResult.text, "utf-8"),
         "book.txt",
@@ -97,7 +102,7 @@ async function analyzeBookStatistics(bookTitle, question) {
 
     const messages = [{ role: "user", content: userContent }];
 
-    let response = await anthropic.beta.messages.create({
+    let response = await getClient().beta.messages.create({
       model: config.claude.model,
       max_tokens: 16384,
       system: CODE_EXECUTION_SYSTEM,
@@ -136,7 +141,7 @@ async function analyzeBookStatistics(bookTitle, question) {
         params.container = response.container.id;
       }
 
-      response = await anthropic.beta.messages.create(params);
+      response = await getClient().beta.messages.create(params);
 
       allTextBlocks.push(
         ...response.content.filter((block) => block.type === "text"),
@@ -170,7 +175,7 @@ async function analyzeBookStatistics(bookTitle, question) {
     // Clean up the uploaded file to avoid storage accumulation
     if (uploadedFileId) {
       try {
-        await anthropic.beta.files.delete(uploadedFileId, {
+        await getClient().beta.files.delete(uploadedFileId, {
           betas: ["files-api-2025-04-14"],
         });
       } catch (cleanupErr) {
@@ -280,7 +285,7 @@ async function generateVisualization(
       },
     ];
 
-    let response = await anthropic.beta.messages.create({
+    let response = await getClient().beta.messages.create({
       model: config.claude.model,
       max_tokens: 16384,
       system: VISUALIZATION_SYSTEM,
@@ -322,7 +327,7 @@ async function generateVisualization(
         params.container = response.container.id;
       }
 
-      response = await anthropic.beta.messages.create(params);
+      response = await getClient().beta.messages.create(params);
       html = extractHtmlFromResponse(response);
     }
 
