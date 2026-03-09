@@ -11,7 +11,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 app.get("/health", (_req, res) => {
-  res.json({ status: "ok", service: "auth-service" });
+  res.json({ status: "ok", service: "auth-service", uptime: process.uptime() });
 });
 
 app.use("/api/auth", authRoutes);

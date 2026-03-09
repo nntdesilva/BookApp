@@ -8,6 +8,7 @@ const router = express.Router();
 let redis = null;
 
 const _redisClient = new Redis(config.redis.url, {
+  lazyConnect: true,
   enableOfflineQueue: false,
   retryStrategy: () => null,
 });
@@ -19,6 +20,10 @@ _redisClient.on("ready", () => {
 
 _redisClient.on("error", () => {
   redis = null;
+});
+
+_redisClient.connect().catch(() => {
+  // Redis unavailable - caching disabled, service runs without it
 });
 
 router.post("/analyze", async (req, res) => {
