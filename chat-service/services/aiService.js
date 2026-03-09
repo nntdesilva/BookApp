@@ -1,9 +1,14 @@
 const Anthropic = require("@anthropic-ai/sdk");
 const config = require("../config/appConfig");
 
-const anthropic = new Anthropic({
-  apiKey: config.claude.apiKey,
-});
+let _anthropic = null;
+
+function getClient() {
+  if (!_anthropic) {
+    _anthropic = new Anthropic({ apiKey: config.claude.apiKey });
+  }
+  return _anthropic;
+}
 
 const MAX_RETRIES = 3;
 const RETRY_BASE_DELAY_MS = 2000;
@@ -280,7 +285,7 @@ async function generateChatResponse(message, conversationHistory = []) {
     ];
 
     const response = await callWithRetry(() =>
-      anthropic.messages.create({
+      getClient().messages.create({
         model: config.claude.model,
         system: META_PROMPT_SYSTEM,
         messages: messages,
@@ -356,7 +361,7 @@ async function continueAfterFunctionExecution(
     ];
 
     const response = await callWithRetry(() =>
-      anthropic.messages.create({
+      getClient().messages.create({
         model: config.claude.model,
         system: META_PROMPT_SYSTEM,
         messages: messages,
