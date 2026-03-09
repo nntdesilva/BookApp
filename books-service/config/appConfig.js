@@ -1,6 +1,6 @@
 module.exports = {
   server: {
-    port: process.env.BOOKS_SERVICE_PORT || 3003,
+    port: process.env.PORT || 3003,
     env: process.env.NODE_ENV || "development",
   },
   embedding: {
