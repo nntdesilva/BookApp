@@ -1,8 +1,10 @@
 jest.mock("@anthropic-ai/sdk", () => {
   const mockCreate = jest.fn();
-  return jest.fn().mockImplementation(() => ({
+  const MockConstructor = jest.fn().mockImplementation(() => ({
     messages: { create: mockCreate },
   }));
+  MockConstructor.__mockCreate = mockCreate;
+  return MockConstructor;
 });
 
 jest.mock("../config/appConfig", () => ({
@@ -19,11 +21,8 @@ const Anthropic = require("@anthropic-ai/sdk");
 let mockCreate;
 
 beforeEach(() => {
-  const instance = Anthropic.mock.results[0]?.value;
-  if (instance) {
-    mockCreate = instance.messages.create;
-    mockCreate.mockReset();
-  }
+  mockCreate = Anthropic.__mockCreate;
+  mockCreate.mockReset();
   process.env.ANTHROPIC_API_KEY = "test-api-key";
 });
 
