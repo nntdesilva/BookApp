@@ -17,6 +17,7 @@ jest.mock("@anthropic-ai/sdk", () => {
     beta: mockBeta,
   }));
   Constructor.toFile = mockToFile;
+  Constructor.__mockBeta = mockBeta;
   return Constructor;
 });
 
@@ -32,20 +33,13 @@ jest.mock("../config/appConfig", () => ({
 
 const Anthropic = require("@anthropic-ai/sdk");
 
-let mockBeta;
+const mockBeta = Anthropic.__mockBeta;
 
 beforeEach(() => {
-  const instance = Anthropic.mock.results[0]?.value;
-  if (instance) {
-    mockBeta = instance.beta;
-    mockBeta.files.upload.mockReset();
-    mockBeta.files.delete.mockReset();
-    mockBeta.messages.create.mockReset();
-  }
+  mockBeta.files.upload.mockReset();
+  mockBeta.files.delete.mockReset();
+  mockBeta.messages.create.mockReset();
   jest.clearAllMocks();
-  // Re-get mockBeta after clear
-  const inst = Anthropic.mock.results[0]?.value;
-  if (inst) mockBeta = inst.beta;
 });
 
 const {
