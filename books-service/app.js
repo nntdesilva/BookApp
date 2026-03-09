@@ -9,7 +9,7 @@ const app = express();
 app.use(express.json({ limit: "50mb" }));
 
 app.get("/health", (_req, res) => {
-  res.json({ status: "ok", service: "books-service" });
+  res.json({ status: "ok", service: "books-service", uptime: process.uptime() });
 });
 
 app.use("/api/books", booksRoutes);
