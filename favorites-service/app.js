@@ -21,10 +21,9 @@ app.use((err, _req, res, _next) => {
 });
 
 if (require.main === module) {
-  connectDB(config.mongodb.uri).then(() => {
-    app.listen(config.server.port, () => {
-      console.log(`[favorites-service] Running on port ${config.server.port}`);
-    });
+  app.listen(config.server.port, () => {
+    console.log(`[favorites-service] Running on port ${config.server.port}`);
+    connectDB(config.mongodb.uri);
   });
 }
 
