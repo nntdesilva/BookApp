@@ -233,7 +233,7 @@ jobs:
               "AutoDeploymentsEnabled": false,
               "AuthenticationConfiguration": { "AccessRoleArn": "'"$ECR_ACCESS_ROLE_ARN"'" }
             }' \
-            --ingress-configuration '{"IsPubliclyAccessible": false}' \
+            --network-configuration '{"IngressConfiguration": {"IsPubliclyAccessible": false}}' \
             --health-check-configuration '{
               "Protocol": "HTTP",
               "Path": "/health",
@@ -333,7 +333,7 @@ jobs:
               "AutoDeploymentsEnabled": false,
               "AuthenticationConfiguration": { "AccessRoleArn": "'"$ECR_ACCESS_ROLE_ARN"'" }
             }' \
-            --ingress-configuration '{"IsPubliclyAccessible": false}' \
+            --network-configuration '{"IngressConfiguration": {"IsPubliclyAccessible": false}}' \
             --health-check-configuration '{
               "Protocol": "HTTP",
               "Path": "/health",
@@ -433,7 +433,7 @@ jobs:
               "AutoDeploymentsEnabled": false,
               "AuthenticationConfiguration": { "AccessRoleArn": "'"$ECR_ACCESS_ROLE_ARN"'" }
             }' \
-            --ingress-configuration '{"IsPubliclyAccessible": false}' \
+            --network-configuration '{"IngressConfiguration": {"IsPubliclyAccessible": false}}' \
             --health-check-configuration '{
               "Protocol": "HTTP",
               "Path": "/health",
@@ -533,7 +533,7 @@ jobs:
               "AutoDeploymentsEnabled": false,
               "AuthenticationConfiguration": { "AccessRoleArn": "'"$ECR_ACCESS_ROLE_ARN"'" }
             }' \
-            --ingress-configuration '{"IsPubliclyAccessible": false}' \
+            --network-configuration '{"IngressConfiguration": {"IsPubliclyAccessible": false}}' \
             --health-check-configuration '{
               "Protocol": "HTTP",
               "Path": "/health",
@@ -633,7 +633,7 @@ jobs:
               "AutoDeploymentsEnabled": false,
               "AuthenticationConfiguration": { "AccessRoleArn": "'"$ECR_ACCESS_ROLE_ARN"'" }
             }' \
-            --ingress-configuration '{"IsPubliclyAccessible": false}' \
+            --network-configuration '{"IngressConfiguration": {"IsPubliclyAccessible": false}}' \
             --health-check-configuration '{
               "Protocol": "HTTP",
               "Path": "/health",
