@@ -73,6 +73,7 @@ jobs:
           [ -z "$AWS_REGION" ]                    && missing+=("AWS_REGION")
           [ -z "$ECR_ACCESS_ROLE_ARN" ]           && missing+=("ECR_ACCESS_ROLE_ARN")
           [ -z "$GATEWAY_APPRUNNER_SERVICE_ARN" ] && missing+=("GATEWAY_APPRUNNER_SERVICE_ARN")
+          [ -z "$VPC_CONNECTOR_ARN" ]             && missing+=("VPC_CONNECTOR_ARN")
           if [ ${#missing[@]} -ne 0 ]; then
             echo "ERROR: Missing GitHub secrets:"
             for s in "${missing[@]}"; do echo "  - $s"; done
@@ -83,6 +84,7 @@ jobs:
           AWS_REGION: ${{ secrets.AWS_REGION }}
           ECR_ACCESS_ROLE_ARN: ${{ secrets.ECR_ACCESS_ROLE_ARN }}
           GATEWAY_APPRUNNER_SERVICE_ARN: ${{ secrets.GATEWAY_APPRUNNER_SERVICE_ARN }}
+          VPC_CONNECTOR_ARN: ${{ secrets.VPC_CONNECTOR_ARN }}
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -113,6 +115,7 @@ jobs:
           ECR_ACCESS_ROLE_ARN: ${{ secrets.ECR_ACCESS_ROLE_ARN }}
           ECR_REGISTRY: ${{ steps.ecr-login.outputs.registry }}
           IMAGE_TAG: ${{ github.event.workflow_run.head_sha }}
+          VPC_CONNECTOR_ARN: ${{ secrets.VPC_CONNECTOR_ARN }}
         run: |
           aws apprunner update-service \
             --service-arn "$APPRUNNER_SERVICE_ARN" \
@@ -124,6 +127,12 @@ jobs:
               },
               "AutoDeploymentsEnabled": false,
               "AuthenticationConfiguration": { "AccessRoleArn": "'"$ECR_ACCESS_ROLE_ARN"'" }
+            }' \
+            --network-configuration '{
+              "EgressConfiguration": {
+                "EgressType": "VPC",
+                "VpcConnectorArn": "'"$VPC_CONNECTOR_ARN"'"
+              }
             }' \
             --health-check-configuration '{
               "Protocol": "HTTP",
@@ -224,6 +233,7 @@ jobs:
               "AutoDeploymentsEnabled": false,
               "AuthenticationConfiguration": { "AccessRoleArn": "'"$ECR_ACCESS_ROLE_ARN"'" }
             }' \
+            --ingress-configuration '{"IsPubliclyAccessible": false}' \
             --health-check-configuration '{
               "Protocol": "HTTP",
               "Path": "/health",
@@ -323,6 +333,7 @@ jobs:
               "AutoDeploymentsEnabled": false,
               "AuthenticationConfiguration": { "AccessRoleArn": "'"$ECR_ACCESS_ROLE_ARN"'" }
             }' \
+            --ingress-configuration '{"IsPubliclyAccessible": false}' \
             --health-check-configuration '{
               "Protocol": "HTTP",
               "Path": "/health",
@@ -422,6 +433,7 @@ jobs:
               "AutoDeploymentsEnabled": false,
               "AuthenticationConfiguration": { "AccessRoleArn": "'"$ECR_ACCESS_ROLE_ARN"'" }
             }' \
+            --ingress-configuration '{"IsPubliclyAccessible": false}' \
             --health-check-configuration '{
               "Protocol": "HTTP",
               "Path": "/health",
@@ -521,6 +533,7 @@ jobs:
               "AutoDeploymentsEnabled": false,
               "AuthenticationConfiguration": { "AccessRoleArn": "'"$ECR_ACCESS_ROLE_ARN"'" }
             }' \
+            --ingress-configuration '{"IsPubliclyAccessible": false}' \
             --health-check-configuration '{
               "Protocol": "HTTP",
               "Path": "/health",
@@ -620,6 +633,7 @@ jobs:
               "AutoDeploymentsEnabled": false,
               "AuthenticationConfiguration": { "AccessRoleArn": "'"$ECR_ACCESS_ROLE_ARN"'" }
             }' \
+            --ingress-configuration '{"IsPubliclyAccessible": false}' \
             --health-check-configuration '{
               "Protocol": "HTTP",
               "Path": "/health",
@@ -667,6 +681,7 @@ jobs:
           [ -z "$AWS_REGION" ]                 && missing+=("AWS_REGION")
           [ -z "$ECR_ACCESS_ROLE_ARN" ]        && missing+=("ECR_ACCESS_ROLE_ARN")
           [ -z "$MCP_APPRUNNER_SERVICE_ARN" ]  && missing+=("MCP_APPRUNNER_SERVICE_ARN")
+          [ -z "$VPC_CONNECTOR_ARN" ]          && missing+=("VPC_CONNECTOR_ARN")
           if [ ${#missing[@]} -ne 0 ]; then
             echo "ERROR: Missing GitHub secrets:"
             for s in "${missing[@]}"; do echo "  - $s"; done
@@ -677,6 +692,7 @@ jobs:
           AWS_REGION: ${{ secrets.AWS_REGION }}
           ECR_ACCESS_ROLE_ARN: ${{ secrets.ECR_ACCESS_ROLE_ARN }}
           MCP_APPRUNNER_SERVICE_ARN: ${{ secrets.MCP_APPRUNNER_SERVICE_ARN }}
+          VPC_CONNECTOR_ARN: ${{ secrets.VPC_CONNECTOR_ARN }}
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -707,6 +723,7 @@ jobs:
           ECR_ACCESS_ROLE_ARN: ${{ secrets.ECR_ACCESS_ROLE_ARN }}
           ECR_REGISTRY: ${{ steps.ecr-login.outputs.registry }}
           IMAGE_TAG: ${{ github.event.workflow_run.head_sha }}
+          VPC_CONNECTOR_ARN: ${{ secrets.VPC_CONNECTOR_ARN }}
         run: |
           aws apprunner update-service \
             --service-arn "$APPRUNNER_SERVICE_ARN" \
@@ -718,6 +735,12 @@ jobs:
               },
               "AutoDeploymentsEnabled": false,
               "AuthenticationConfiguration": { "AccessRoleArn": "'"$ECR_ACCESS_ROLE_ARN"'" }
+            }' \
+            --network-configuration '{
+              "EgressConfiguration": {
+                "EgressType": "VPC",
+                "VpcConnectorArn": "'"$VPC_CONNECTOR_ARN"'"
+              }
             }' \
             --health-check-configuration '{
               "Protocol": "HTTP",
