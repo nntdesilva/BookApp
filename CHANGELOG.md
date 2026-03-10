@@ -5,9 +5,14 @@ All notable changes to the BookApp project are documented in the [changelogs](./
 ## Quick Links
 
 - **[Latest Version: v0.11.1](./changelogs/v0.11.1.md)** - 2026-03-04
+- **[Unreleased]** - 2026-03-10
 - **[Version History](./changelogs/README.md)** - Browse all versions
 
 ## Recent Updates
+
+### [Unreleased] - 2026-03-10
+
+CI: Added a GitHub Actions workflow (`changelog-check.yml`) that runs on every PR to `main` and fails if `CHANGELOG.md` was not modified. Configured as a required status check in branch protection so the merge button is blocked until the changelog is updated.
 
 ### [v0.11.1](./changelogs/v0.11.1.md) - 2026-03-04
 
