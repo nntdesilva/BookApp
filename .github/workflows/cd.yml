@@ -181,6 +181,7 @@ jobs:
           [ -z "$AWS_REGION" ]                  && missing+=("AWS_REGION")
           [ -z "$ECR_ACCESS_ROLE_ARN" ]         && missing+=("ECR_ACCESS_ROLE_ARN")
           [ -z "$AUTH_APPRUNNER_SERVICE_ARN" ]  && missing+=("AUTH_APPRUNNER_SERVICE_ARN")
+          [ -z "$MONGODB_URI" ]                 && missing+=("MONGODB_URI")
           if [ ${#missing[@]} -ne 0 ]; then
             echo "ERROR: Missing GitHub secrets:"
             for s in "${missing[@]}"; do echo "  - $s"; done
@@ -191,6 +192,7 @@ jobs:
           AWS_REGION: ${{ secrets.AWS_REGION }}
           ECR_ACCESS_ROLE_ARN: ${{ secrets.ECR_ACCESS_ROLE_ARN }}
           AUTH_APPRUNNER_SERVICE_ARN: ${{ secrets.AUTH_APPRUNNER_SERVICE_ARN }}
+          MONGODB_URI: ${{ secrets.MONGODB_URI }}
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -221,6 +223,7 @@ jobs:
           ECR_ACCESS_ROLE_ARN: ${{ secrets.ECR_ACCESS_ROLE_ARN }}
           ECR_REGISTRY: ${{ steps.ecr-login.outputs.registry }}
           IMAGE_TAG: ${{ github.event.workflow_run.head_sha }}
+          MONGODB_URI: ${{ secrets.MONGODB_URI }}
         run: |
           aws apprunner update-service \
             --service-arn "$APPRUNNER_SERVICE_ARN" \
@@ -228,7 +231,13 @@ jobs:
               "ImageRepository": {
                 "ImageIdentifier": "'"$ECR_REGISTRY/book-app-auth:$IMAGE_TAG"'",
                 "ImageRepositoryType": "ECR",
-                "ImageConfiguration": { "Port": "3001" }
+                "ImageConfiguration": {
+                  "Port": "3001",
+                  "RuntimeEnvironmentVariables": {
+                    "MONGODB_URI": "'"$MONGODB_URI"'",
+                    "NODE_ENV": "production"
+                  }
+                }
               },
               "AutoDeploymentsEnabled": false,
               "AuthenticationConfiguration": { "AccessRoleArn": "'"$ECR_ACCESS_ROLE_ARN"'" }
@@ -281,6 +290,7 @@ jobs:
           [ -z "$AWS_REGION" ]                       && missing+=("AWS_REGION")
           [ -z "$ECR_ACCESS_ROLE_ARN" ]              && missing+=("ECR_ACCESS_ROLE_ARN")
           [ -z "$FAVORITES_APPRUNNER_SERVICE_ARN" ]  && missing+=("FAVORITES_APPRUNNER_SERVICE_ARN")
+          [ -z "$MONGODB_URI" ]                      && missing+=("MONGODB_URI")
           if [ ${#missing[@]} -ne 0 ]; then
             echo "ERROR: Missing GitHub secrets:"
             for s in "${missing[@]}"; do echo "  - $s"; done
@@ -291,6 +301,7 @@ jobs:
           AWS_REGION: ${{ secrets.AWS_REGION }}
           ECR_ACCESS_ROLE_ARN: ${{ secrets.ECR_ACCESS_ROLE_ARN }}
           FAVORITES_APPRUNNER_SERVICE_ARN: ${{ secrets.FAVORITES_APPRUNNER_SERVICE_ARN }}
+          MONGODB_URI: ${{ secrets.MONGODB_URI }}
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -321,6 +332,7 @@ jobs:
           ECR_ACCESS_ROLE_ARN: ${{ secrets.ECR_ACCESS_ROLE_ARN }}
           ECR_REGISTRY: ${{ steps.ecr-login.outputs.registry }}
           IMAGE_TAG: ${{ github.event.workflow_run.head_sha }}
+          MONGODB_URI: ${{ secrets.MONGODB_URI }}
         run: |
           aws apprunner update-service \
             --service-arn "$APPRUNNER_SERVICE_ARN" \
@@ -328,7 +340,13 @@ jobs:
               "ImageRepository": {
                 "ImageIdentifier": "'"$ECR_REGISTRY/book-app-favorites:$IMAGE_TAG"'",
                 "ImageRepositoryType": "ECR",
-                "ImageConfiguration": { "Port": "3002" }
+                "ImageConfiguration": {
+                  "Port": "3002",
+                  "RuntimeEnvironmentVariables": {
+                    "MONGODB_URI": "'"$MONGODB_URI"'",
+                    "NODE_ENV": "production"
+                  }
+                }
               },
               "AutoDeploymentsEnabled": false,
               "AuthenticationConfiguration": { "AccessRoleArn": "'"$ECR_ACCESS_ROLE_ARN"'" }
