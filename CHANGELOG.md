@@ -4,13 +4,18 @@ All notable changes to the BookApp project are documented in the [changelogs](./
 
 ## Quick Links
 
-- **[Latest Version: v0.11.4](./changelogs/v0.11.4.md)** - 2026-03-11
+- **[Latest Version: v0.11.5](./changelogs/v0.11.5.md)** - 2026-03-11
+- **[v0.11.4](./changelogs/v0.11.4.md)** - 2026-03-11
 - **[v0.11.3](./changelogs/v0.11.3.md)** - 2026-03-11
 - **[v0.11.2](./changelogs/v0.11.2.md)** - 2026-03-11
 - **[v0.11.1](./changelogs/v0.11.1.md)** - 2026-03-04
 - **[Version History](./changelogs/README.md)** - Browse all versions
 
 ## Recent Updates
+
+### [v0.11.5](./changelogs/v0.11.5.md) - 2026-03-11
+
+Bug Fix: Added targeted diagnostic logging to `gateway/middleware/auth.js` and `gateway/app.js` to identify why a successful login (status=200 from the auth-service) was redirecting users back to `/login`. `verifyToken` now logs whether the `token` cookie is present and, if `jwt.verify` fails, logs the error name, message, and secret length so a JWT secret mismatch between services is immediately visible in CloudWatch. `requireAuth` and `redirectIfAuth` log every redirect decision. The login and signup handlers log cookie options at the moment `Set-Cookie` is written. `GET /` logs which cookie names the browser sent on the post-login redirect, revealing whether the cookie arrived at all.
 
 ### [v0.11.4](./changelogs/v0.11.4.md) - 2026-03-11
 
