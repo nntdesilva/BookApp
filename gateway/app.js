@@ -41,14 +41,34 @@ app.get("/login", redirectIfAuth, (_req, res) => {
 app.post("/login", redirectIfAuth, async (req, res) => {
   try {
     const { username, password } = req.body;
+    const targetUrl = `${config.services.authUrl}/api/auth/login`;
+    console.log(`[gateway] POST /login -> ${targetUrl} (user: ${username})`);
 
-    const authRes = await fetch(`${config.services.authUrl}/api/auth/login`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ username, password }),
-    });
+    let authRes;
+    try {
+      authRes = await fetch(targetUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username, password }),
+      });
+    } catch (fetchErr) {
+      console.error(`[gateway] Login fetch failed (url: ${targetUrl}):`, fetchErr.message, fetchErr.cause || "");
+      return res.render("auth/login", {
+        error: "An error occurred during login. Please try again.",
+      });
+    }
 
-    const data = await authRes.json();
+    let data;
+    try {
+      data = await authRes.json();
+    } catch (parseErr) {
+      console.error(`[gateway] Login response parse failed (status: ${authRes.status}):`, parseErr.message);
+      return res.render("auth/login", {
+        error: "An error occurred during login. Please try again.",
+      });
+    }
+
+    console.log(`[gateway] Login response: status=${authRes.status} success=${data.success} error=${data.error || "none"}`);
 
     if (!authRes.ok || !data.success) {
       return res.render("auth/login", {
@@ -59,7 +79,7 @@ app.post("/login", redirectIfAuth, async (req, res) => {
     res.cookie(config.jwt.cookieName, data.token, config.jwt.cookieOptions);
     res.redirect("/");
   } catch (error) {
-    console.error("[gateway] Login error:", error);
+    console.error("[gateway] Login unexpected error:", error.message, error.stack);
     res.render("auth/login", {
       error: "An error occurred during login. Please try again.",
     });
@@ -73,14 +93,34 @@ app.get("/signup", redirectIfAuth, (_req, res) => {
 app.post("/signup", redirectIfAuth, async (req, res) => {
   try {
     const { username, email, password, confirmPassword } = req.body;
+    const targetUrl = `${config.services.authUrl}/api/auth/signup`;
+    console.log(`[gateway] POST /signup -> ${targetUrl} (user: ${username}, email: ${email})`);
 
-    const authRes = await fetch(`${config.services.authUrl}/api/auth/signup`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ username, email, password, confirmPassword }),
-    });
+    let authRes;
+    try {
+      authRes = await fetch(targetUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username, email, password, confirmPassword }),
+      });
+    } catch (fetchErr) {
+      console.error(`[gateway] Signup fetch failed (url: ${targetUrl}):`, fetchErr.message, fetchErr.cause || "");
+      return res.render("auth/signup", {
+        error: "An error occurred during signup. Please try again.",
+      });
+    }
 
-    const data = await authRes.json();
+    let data;
+    try {
+      data = await authRes.json();
+    } catch (parseErr) {
+      console.error(`[gateway] Signup response parse failed (status: ${authRes.status}):`, parseErr.message);
+      return res.render("auth/signup", {
+        error: "An error occurred during signup. Please try again.",
+      });
+    }
+
+    console.log(`[gateway] Signup response: status=${authRes.status} success=${data.success} error=${data.error || "none"}`);
 
     if (!authRes.ok || !data.success) {
       return res.render("auth/signup", {
@@ -91,7 +131,7 @@ app.post("/signup", redirectIfAuth, async (req, res) => {
     res.cookie(config.jwt.cookieName, data.token, config.jwt.cookieOptions);
     res.redirect("/");
   } catch (error) {
-    console.error("[gateway] Signup error:", error);
+    console.error("[gateway] Signup unexpected error:", error.message, error.stack);
     res.render("auth/signup", {
       error: "An error occurred during signup. Please try again.",
     });
@@ -187,6 +227,9 @@ if (require.main === module) {
   app.listen(config.server.port, () => {
     console.log(`[gateway] Running on port ${config.server.port}`);
     console.log(`[gateway] Environment: ${config.server.env}`);
+    console.log(`[gateway] Auth service URL: ${config.services.authUrl}`);
+    console.log(`[gateway] Chat service URL: ${config.services.chatUrl}`);
+    console.log(`[gateway] Favorites service URL: ${config.services.favoritesUrl}`);
   });
 }
 
