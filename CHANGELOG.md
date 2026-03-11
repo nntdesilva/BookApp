@@ -4,12 +4,17 @@ All notable changes to the BookApp project are documented in the [changelogs](./
 
 ## Quick Links
 
-- **[Latest Version: v0.11.3](./changelogs/v0.11.3.md)** - 2026-03-11
+- **[Latest Version: v0.11.4](./changelogs/v0.11.4.md)** - 2026-03-11
+- **[v0.11.3](./changelogs/v0.11.3.md)** - 2026-03-11
 - **[v0.11.2](./changelogs/v0.11.2.md)** - 2026-03-11
 - **[v0.11.1](./changelogs/v0.11.1.md)** - 2026-03-04
 - **[Version History](./changelogs/README.md)** - Browse all versions
 
 ## Recent Updates
+
+### [v0.11.4](./changelogs/v0.11.4.md) - 2026-03-11
+
+Bug Fix: Fixed all services returning runtime errors in production due to missing environment variables on AWS App Runner. The CD pipeline was deploying every service with an `ImageConfiguration` that only set the `Port`, so secrets were never injected into running containers. Added `RuntimeEnvironmentVariables` to the `update-service` call for all seven services, and updated each service's "Verify required secrets" step to fail fast if a secret is absent. Variables added: `JWT_SECRET` (gateway, auth, favorites), `OPENAI_EMBEDDINGS_API_KEY` (books), `ANTHROPIC_API_KEY` + `REDIS_URL` + `BOOKS_SERVICE_URL` (analysis), `ANTHROPIC_API_KEY` + `REDIS_URL` + `FAVORITES_SERVICE_URL` + `BOOKS_SERVICE_URL` + `ANALYSIS_SERVICE_URL` (chat), `FAVORITES_SERVICE_URL` + `BOOKS_SERVICE_URL` + `ANALYSIS_SERVICE_URL` (mcp), and all inter-service URLs for gateway.
 
 ### [v0.11.3](./changelogs/v0.11.3.md) - 2026-03-11
 
