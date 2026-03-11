@@ -11,7 +11,7 @@ All notable changes to the BookApp project are documented in the [changelogs](./
 - **[v0.11.1](./changelogs/v0.11.1.md)** - 2026-03-04
 - **[Version History](./changelogs/README.md)** - Browse all versions
 
-## Recent Updates
+## Recent Updates |
 
 ### [v0.11.5](./changelogs/v0.11.5.md) - 2026-03-11
 
