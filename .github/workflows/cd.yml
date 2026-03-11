@@ -74,6 +74,10 @@ jobs:
           [ -z "$ECR_ACCESS_ROLE_ARN" ]           && missing+=("ECR_ACCESS_ROLE_ARN")
           [ -z "$GATEWAY_APPRUNNER_SERVICE_ARN" ] && missing+=("GATEWAY_APPRUNNER_SERVICE_ARN")
           [ -z "$VPC_CONNECTOR_ARN" ]             && missing+=("VPC_CONNECTOR_ARN")
+          [ -z "$JWT_SECRET" ]                    && missing+=("JWT_SECRET")
+          [ -z "$AUTH_SERVICE_URL" ]              && missing+=("AUTH_SERVICE_URL")
+          [ -z "$CHAT_SERVICE_URL" ]              && missing+=("CHAT_SERVICE_URL")
+          [ -z "$FAVORITES_SERVICE_URL" ]         && missing+=("FAVORITES_SERVICE_URL")
           if [ ${#missing[@]} -ne 0 ]; then
             echo "ERROR: Missing GitHub secrets:"
             for s in "${missing[@]}"; do echo "  - $s"; done
@@ -85,6 +89,10 @@ jobs:
           ECR_ACCESS_ROLE_ARN: ${{ secrets.ECR_ACCESS_ROLE_ARN }}
           GATEWAY_APPRUNNER_SERVICE_ARN: ${{ secrets.GATEWAY_APPRUNNER_SERVICE_ARN }}
           VPC_CONNECTOR_ARN: ${{ secrets.VPC_CONNECTOR_ARN }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          AUTH_SERVICE_URL: ${{ secrets.AUTH_SERVICE_URL }}
+          CHAT_SERVICE_URL: ${{ secrets.CHAT_SERVICE_URL }}
+          FAVORITES_SERVICE_URL: ${{ secrets.FAVORITES_SERVICE_URL }}
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -116,6 +124,10 @@ jobs:
           ECR_REGISTRY: ${{ steps.ecr-login.outputs.registry }}
           IMAGE_TAG: ${{ github.event.workflow_run.head_sha }}
           VPC_CONNECTOR_ARN: ${{ secrets.VPC_CONNECTOR_ARN }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          AUTH_SERVICE_URL: ${{ secrets.AUTH_SERVICE_URL }}
+          CHAT_SERVICE_URL: ${{ secrets.CHAT_SERVICE_URL }}
+          FAVORITES_SERVICE_URL: ${{ secrets.FAVORITES_SERVICE_URL }}
         run: |
           aws apprunner update-service \
             --service-arn "$APPRUNNER_SERVICE_ARN" \
@@ -123,7 +135,16 @@ jobs:
               "ImageRepository": {
                 "ImageIdentifier": "'"$ECR_REGISTRY/book-app:$IMAGE_TAG"'",
                 "ImageRepositoryType": "ECR",
-                "ImageConfiguration": { "Port": "3000" }
+                "ImageConfiguration": {
+                  "Port": "3000",
+                  "RuntimeEnvironmentVariables": {
+                    "JWT_SECRET": "'"$JWT_SECRET"'",
+                    "AUTH_SERVICE_URL": "'"$AUTH_SERVICE_URL"'",
+                    "CHAT_SERVICE_URL": "'"$CHAT_SERVICE_URL"'",
+                    "FAVORITES_SERVICE_URL": "'"$FAVORITES_SERVICE_URL"'",
+                    "NODE_ENV": "production"
+                  }
+                }
               },
               "AutoDeploymentsEnabled": false,
               "AuthenticationConfiguration": { "AccessRoleArn": "'"$ECR_ACCESS_ROLE_ARN"'" }
@@ -182,6 +203,7 @@ jobs:
           [ -z "$ECR_ACCESS_ROLE_ARN" ]         && missing+=("ECR_ACCESS_ROLE_ARN")
           [ -z "$AUTH_APPRUNNER_SERVICE_ARN" ]  && missing+=("AUTH_APPRUNNER_SERVICE_ARN")
           [ -z "$MONGODB_URI" ]                 && missing+=("MONGODB_URI")
+          [ -z "$JWT_SECRET" ]                  && missing+=("JWT_SECRET")
           if [ ${#missing[@]} -ne 0 ]; then
             echo "ERROR: Missing GitHub secrets:"
             for s in "${missing[@]}"; do echo "  - $s"; done
@@ -193,6 +215,7 @@ jobs:
           ECR_ACCESS_ROLE_ARN: ${{ secrets.ECR_ACCESS_ROLE_ARN }}
           AUTH_APPRUNNER_SERVICE_ARN: ${{ secrets.AUTH_APPRUNNER_SERVICE_ARN }}
           MONGODB_URI: ${{ secrets.MONGODB_URI }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -224,6 +247,7 @@ jobs:
           ECR_REGISTRY: ${{ steps.ecr-login.outputs.registry }}
           IMAGE_TAG: ${{ github.event.workflow_run.head_sha }}
           MONGODB_URI: ${{ secrets.MONGODB_URI }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
         run: |
           aws apprunner update-service \
             --service-arn "$APPRUNNER_SERVICE_ARN" \
@@ -235,6 +259,7 @@ jobs:
                   "Port": "3001",
                   "RuntimeEnvironmentVariables": {
                     "MONGODB_URI": "'"$MONGODB_URI"'",
+                    "JWT_SECRET": "'"$JWT_SECRET"'",
                     "NODE_ENV": "production"
                   }
                 }
@@ -291,6 +316,7 @@ jobs:
           [ -z "$ECR_ACCESS_ROLE_ARN" ]              && missing+=("ECR_ACCESS_ROLE_ARN")
           [ -z "$FAVORITES_APPRUNNER_SERVICE_ARN" ]  && missing+=("FAVORITES_APPRUNNER_SERVICE_ARN")
           [ -z "$MONGODB_URI" ]                      && missing+=("MONGODB_URI")
+          [ -z "$JWT_SECRET" ]                       && missing+=("JWT_SECRET")
           if [ ${#missing[@]} -ne 0 ]; then
             echo "ERROR: Missing GitHub secrets:"
             for s in "${missing[@]}"; do echo "  - $s"; done
@@ -302,6 +328,7 @@ jobs:
           ECR_ACCESS_ROLE_ARN: ${{ secrets.ECR_ACCESS_ROLE_ARN }}
           FAVORITES_APPRUNNER_SERVICE_ARN: ${{ secrets.FAVORITES_APPRUNNER_SERVICE_ARN }}
           MONGODB_URI: ${{ secrets.MONGODB_URI }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -333,6 +360,7 @@ jobs:
           ECR_REGISTRY: ${{ steps.ecr-login.outputs.registry }}
           IMAGE_TAG: ${{ github.event.workflow_run.head_sha }}
           MONGODB_URI: ${{ secrets.MONGODB_URI }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
         run: |
           aws apprunner update-service \
             --service-arn "$APPRUNNER_SERVICE_ARN" \
@@ -344,6 +372,7 @@ jobs:
                   "Port": "3002",
                   "RuntimeEnvironmentVariables": {
                     "MONGODB_URI": "'"$MONGODB_URI"'",
+                    "JWT_SECRET": "'"$JWT_SECRET"'",
                     "NODE_ENV": "production"
                   }
                 }
@@ -395,10 +424,11 @@ jobs:
       - name: Verify required secrets
         run: |
           missing=()
-          [ -z "$AWS_ROLE_ARN" ]                  && missing+=("AWS_ROLE_ARN")
-          [ -z "$AWS_REGION" ]                    && missing+=("AWS_REGION")
-          [ -z "$ECR_ACCESS_ROLE_ARN" ]           && missing+=("ECR_ACCESS_ROLE_ARN")
-          [ -z "$BOOKS_APPRUNNER_SERVICE_ARN" ]   && missing+=("BOOKS_APPRUNNER_SERVICE_ARN")
+          [ -z "$AWS_ROLE_ARN" ]                    && missing+=("AWS_ROLE_ARN")
+          [ -z "$AWS_REGION" ]                      && missing+=("AWS_REGION")
+          [ -z "$ECR_ACCESS_ROLE_ARN" ]             && missing+=("ECR_ACCESS_ROLE_ARN")
+          [ -z "$BOOKS_APPRUNNER_SERVICE_ARN" ]     && missing+=("BOOKS_APPRUNNER_SERVICE_ARN")
+          [ -z "$OPENAI_EMBEDDINGS_API_KEY" ]       && missing+=("OPENAI_EMBEDDINGS_API_KEY")
           if [ ${#missing[@]} -ne 0 ]; then
             echo "ERROR: Missing GitHub secrets:"
             for s in "${missing[@]}"; do echo "  - $s"; done
@@ -409,6 +439,7 @@ jobs:
           AWS_REGION: ${{ secrets.AWS_REGION }}
           ECR_ACCESS_ROLE_ARN: ${{ secrets.ECR_ACCESS_ROLE_ARN }}
           BOOKS_APPRUNNER_SERVICE_ARN: ${{ secrets.BOOKS_APPRUNNER_SERVICE_ARN }}
+          OPENAI_EMBEDDINGS_API_KEY: ${{ secrets.OPENAI_EMBEDDINGS_API_KEY }}
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -439,6 +470,7 @@ jobs:
           ECR_ACCESS_ROLE_ARN: ${{ secrets.ECR_ACCESS_ROLE_ARN }}
           ECR_REGISTRY: ${{ steps.ecr-login.outputs.registry }}
           IMAGE_TAG: ${{ github.event.workflow_run.head_sha }}
+          OPENAI_EMBEDDINGS_API_KEY: ${{ secrets.OPENAI_EMBEDDINGS_API_KEY }}
         run: |
           aws apprunner update-service \
             --service-arn "$APPRUNNER_SERVICE_ARN" \
@@ -446,7 +478,13 @@ jobs:
               "ImageRepository": {
                 "ImageIdentifier": "'"$ECR_REGISTRY/book-app-books:$IMAGE_TAG"'",
                 "ImageRepositoryType": "ECR",
-                "ImageConfiguration": { "Port": "3003" }
+                "ImageConfiguration": {
+                  "Port": "3003",
+                  "RuntimeEnvironmentVariables": {
+                    "OPENAI_EMBEDDINGS_API_KEY": "'"$OPENAI_EMBEDDINGS_API_KEY"'",
+                    "NODE_ENV": "production"
+                  }
+                }
               },
               "AutoDeploymentsEnabled": false,
               "AuthenticationConfiguration": { "AccessRoleArn": "'"$ECR_ACCESS_ROLE_ARN"'" }
@@ -499,6 +537,9 @@ jobs:
           [ -z "$AWS_REGION" ]                      && missing+=("AWS_REGION")
           [ -z "$ECR_ACCESS_ROLE_ARN" ]             && missing+=("ECR_ACCESS_ROLE_ARN")
           [ -z "$ANALYSIS_APPRUNNER_SERVICE_ARN" ]  && missing+=("ANALYSIS_APPRUNNER_SERVICE_ARN")
+          [ -z "$ANTHROPIC_API_KEY" ]               && missing+=("ANTHROPIC_API_KEY")
+          [ -z "$REDIS_URL" ]                       && missing+=("REDIS_URL")
+          [ -z "$BOOKS_SERVICE_URL" ]               && missing+=("BOOKS_SERVICE_URL")
           if [ ${#missing[@]} -ne 0 ]; then
             echo "ERROR: Missing GitHub secrets:"
             for s in "${missing[@]}"; do echo "  - $s"; done
@@ -509,6 +550,9 @@ jobs:
           AWS_REGION: ${{ secrets.AWS_REGION }}
           ECR_ACCESS_ROLE_ARN: ${{ secrets.ECR_ACCESS_ROLE_ARN }}
           ANALYSIS_APPRUNNER_SERVICE_ARN: ${{ secrets.ANALYSIS_APPRUNNER_SERVICE_ARN }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          REDIS_URL: ${{ secrets.REDIS_URL }}
+          BOOKS_SERVICE_URL: ${{ secrets.BOOKS_SERVICE_URL }}
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -539,6 +583,9 @@ jobs:
           ECR_ACCESS_ROLE_ARN: ${{ secrets.ECR_ACCESS_ROLE_ARN }}
           ECR_REGISTRY: ${{ steps.ecr-login.outputs.registry }}
           IMAGE_TAG: ${{ github.event.workflow_run.head_sha }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          REDIS_URL: ${{ secrets.REDIS_URL }}
+          BOOKS_SERVICE_URL: ${{ secrets.BOOKS_SERVICE_URL }}
         run: |
           aws apprunner update-service \
             --service-arn "$APPRUNNER_SERVICE_ARN" \
@@ -546,7 +593,15 @@ jobs:
               "ImageRepository": {
                 "ImageIdentifier": "'"$ECR_REGISTRY/book-app-analysis:$IMAGE_TAG"'",
                 "ImageRepositoryType": "ECR",
-                "ImageConfiguration": { "Port": "3004" }
+                "ImageConfiguration": {
+                  "Port": "3004",
+                  "RuntimeEnvironmentVariables": {
+                    "ANTHROPIC_API_KEY": "'"$ANTHROPIC_API_KEY"'",
+                    "REDIS_URL": "'"$REDIS_URL"'",
+                    "BOOKS_SERVICE_URL": "'"$BOOKS_SERVICE_URL"'",
+                    "NODE_ENV": "production"
+                  }
+                }
               },
               "AutoDeploymentsEnabled": false,
               "AuthenticationConfiguration": { "AccessRoleArn": "'"$ECR_ACCESS_ROLE_ARN"'" }
@@ -599,6 +654,11 @@ jobs:
           [ -z "$AWS_REGION" ]                   && missing+=("AWS_REGION")
           [ -z "$ECR_ACCESS_ROLE_ARN" ]          && missing+=("ECR_ACCESS_ROLE_ARN")
           [ -z "$CHAT_APPRUNNER_SERVICE_ARN" ]   && missing+=("CHAT_APPRUNNER_SERVICE_ARN")
+          [ -z "$ANTHROPIC_API_KEY" ]            && missing+=("ANTHROPIC_API_KEY")
+          [ -z "$REDIS_URL" ]                    && missing+=("REDIS_URL")
+          [ -z "$FAVORITES_SERVICE_URL" ]        && missing+=("FAVORITES_SERVICE_URL")
+          [ -z "$BOOKS_SERVICE_URL" ]            && missing+=("BOOKS_SERVICE_URL")
+          [ -z "$ANALYSIS_SERVICE_URL" ]         && missing+=("ANALYSIS_SERVICE_URL")
           if [ ${#missing[@]} -ne 0 ]; then
             echo "ERROR: Missing GitHub secrets:"
             for s in "${missing[@]}"; do echo "  - $s"; done
@@ -609,6 +669,11 @@ jobs:
           AWS_REGION: ${{ secrets.AWS_REGION }}
           ECR_ACCESS_ROLE_ARN: ${{ secrets.ECR_ACCESS_ROLE_ARN }}
           CHAT_APPRUNNER_SERVICE_ARN: ${{ secrets.CHAT_APPRUNNER_SERVICE_ARN }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          REDIS_URL: ${{ secrets.REDIS_URL }}
+          FAVORITES_SERVICE_URL: ${{ secrets.FAVORITES_SERVICE_URL }}
+          BOOKS_SERVICE_URL: ${{ secrets.BOOKS_SERVICE_URL }}
+          ANALYSIS_SERVICE_URL: ${{ secrets.ANALYSIS_SERVICE_URL }}
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -639,6 +704,11 @@ jobs:
           ECR_ACCESS_ROLE_ARN: ${{ secrets.ECR_ACCESS_ROLE_ARN }}
           ECR_REGISTRY: ${{ steps.ecr-login.outputs.registry }}
           IMAGE_TAG: ${{ github.event.workflow_run.head_sha }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          REDIS_URL: ${{ secrets.REDIS_URL }}
+          FAVORITES_SERVICE_URL: ${{ secrets.FAVORITES_SERVICE_URL }}
+          BOOKS_SERVICE_URL: ${{ secrets.BOOKS_SERVICE_URL }}
+          ANALYSIS_SERVICE_URL: ${{ secrets.ANALYSIS_SERVICE_URL }}
         run: |
           aws apprunner update-service \
             --service-arn "$APPRUNNER_SERVICE_ARN" \
@@ -646,7 +716,17 @@ jobs:
               "ImageRepository": {
                 "ImageIdentifier": "'"$ECR_REGISTRY/book-app-chat:$IMAGE_TAG"'",
                 "ImageRepositoryType": "ECR",
-                "ImageConfiguration": { "Port": "3005" }
+                "ImageConfiguration": {
+                  "Port": "3005",
+                  "RuntimeEnvironmentVariables": {
+                    "ANTHROPIC_API_KEY": "'"$ANTHROPIC_API_KEY"'",
+                    "REDIS_URL": "'"$REDIS_URL"'",
+                    "FAVORITES_SERVICE_URL": "'"$FAVORITES_SERVICE_URL"'",
+                    "BOOKS_SERVICE_URL": "'"$BOOKS_SERVICE_URL"'",
+                    "ANALYSIS_SERVICE_URL": "'"$ANALYSIS_SERVICE_URL"'",
+                    "NODE_ENV": "production"
+                  }
+                }
               },
               "AutoDeploymentsEnabled": false,
               "AuthenticationConfiguration": { "AccessRoleArn": "'"$ECR_ACCESS_ROLE_ARN"'" }
@@ -700,6 +780,9 @@ jobs:
           [ -z "$ECR_ACCESS_ROLE_ARN" ]        && missing+=("ECR_ACCESS_ROLE_ARN")
           [ -z "$MCP_APPRUNNER_SERVICE_ARN" ]  && missing+=("MCP_APPRUNNER_SERVICE_ARN")
           [ -z "$VPC_CONNECTOR_ARN" ]          && missing+=("VPC_CONNECTOR_ARN")
+          [ -z "$FAVORITES_SERVICE_URL" ]      && missing+=("FAVORITES_SERVICE_URL")
+          [ -z "$BOOKS_SERVICE_URL" ]          && missing+=("BOOKS_SERVICE_URL")
+          [ -z "$ANALYSIS_SERVICE_URL" ]       && missing+=("ANALYSIS_SERVICE_URL")
           if [ ${#missing[@]} -ne 0 ]; then
             echo "ERROR: Missing GitHub secrets:"
             for s in "${missing[@]}"; do echo "  - $s"; done
@@ -711,6 +794,9 @@ jobs:
           ECR_ACCESS_ROLE_ARN: ${{ secrets.ECR_ACCESS_ROLE_ARN }}
           MCP_APPRUNNER_SERVICE_ARN: ${{ secrets.MCP_APPRUNNER_SERVICE_ARN }}
           VPC_CONNECTOR_ARN: ${{ secrets.VPC_CONNECTOR_ARN }}
+          FAVORITES_SERVICE_URL: ${{ secrets.FAVORITES_SERVICE_URL }}
+          BOOKS_SERVICE_URL: ${{ secrets.BOOKS_SERVICE_URL }}
+          ANALYSIS_SERVICE_URL: ${{ secrets.ANALYSIS_SERVICE_URL }}
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -742,6 +828,9 @@ jobs:
           ECR_REGISTRY: ${{ steps.ecr-login.outputs.registry }}
           IMAGE_TAG: ${{ github.event.workflow_run.head_sha }}
           VPC_CONNECTOR_ARN: ${{ secrets.VPC_CONNECTOR_ARN }}
+          FAVORITES_SERVICE_URL: ${{ secrets.FAVORITES_SERVICE_URL }}
+          BOOKS_SERVICE_URL: ${{ secrets.BOOKS_SERVICE_URL }}
+          ANALYSIS_SERVICE_URL: ${{ secrets.ANALYSIS_SERVICE_URL }}
         run: |
           aws apprunner update-service \
             --service-arn "$APPRUNNER_SERVICE_ARN" \
@@ -749,7 +838,14 @@ jobs:
               "ImageRepository": {
                 "ImageIdentifier": "'"$ECR_REGISTRY/book-app-mcp:$IMAGE_TAG"'",
                 "ImageRepositoryType": "ECR",
-                "ImageConfiguration": { "Port": "3006" }
+                "ImageConfiguration": {
+                  "Port": "3006",
+                  "RuntimeEnvironmentVariables": {
+                    "FAVORITES_SERVICE_URL": "'"$FAVORITES_SERVICE_URL"'",
+                    "BOOKS_SERVICE_URL": "'"$BOOKS_SERVICE_URL"'",
+                    "ANALYSIS_SERVICE_URL": "'"$ANALYSIS_SERVICE_URL"'"
+                  }
+                }
               },
               "AutoDeploymentsEnabled": false,
               "AuthenticationConfiguration": { "AccessRoleArn": "'"$ECR_ACCESS_ROLE_ARN"'" }
