@@ -14,8 +14,8 @@ module.exports = {
     },
   },
   services: {
-    authUrl: process.env.AUTH_SERVICE_URL || "http://localhost:3001",
-    chatUrl: process.env.CHAT_SERVICE_URL || "http://localhost:3005",
-    favoritesUrl: process.env.FAVORITES_SERVICE_URL || "http://localhost:3002",
+    authUrl: (process.env.AUTH_SERVICE_URL || "http://localhost:3001").trim(),
+    chatUrl: (process.env.CHAT_SERVICE_URL || "http://localhost:3005").trim(),
+    favoritesUrl: (process.env.FAVORITES_SERVICE_URL || "http://localhost:3002").trim(),
   },
 };
