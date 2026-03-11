@@ -4,11 +4,16 @@ All notable changes to the BookApp project are documented in the [changelogs](./
 
 ## Quick Links
 
-- **[Latest Version: v0.11.2](./changelogs/v0.11.2.md)** - 2026-03-11
+- **[Latest Version: v0.11.3](./changelogs/v0.11.3.md)** - 2026-03-11
+- **[v0.11.2](./changelogs/v0.11.2.md)** - 2026-03-11
 - **[v0.11.1](./changelogs/v0.11.1.md)** - 2026-03-04
 - **[Version History](./changelogs/README.md)** - Browse all versions
 
 ## Recent Updates
+
+### [v0.11.3](./changelogs/v0.11.3.md) - 2026-03-11
+
+Bug Fix: Fixed login and signup failures on AWS App Runner caused by missing `MONGODB_URI` environment variable on the auth and favorites services. Without it both services fell back to `localhost:27017`, hitting a Mongoose 10-second buffering timeout on every database operation. Set `MONGODB_URI` and `NODE_ENV=production` directly on both App Runner services, added `MONGODB_URI` as a GitHub Actions secret, and updated the CD workflow to pass `RuntimeEnvironmentVariables` in the `deploy-auth` and `deploy-favorites` steps so the env vars are never wiped on future deployments. Removed `AI-WORKFLOW.md`.
 
 ### [v0.11.2](./changelogs/v0.11.2.md) - 2026-03-11
 
