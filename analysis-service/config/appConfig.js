@@ -11,6 +11,6 @@ module.exports = {
     url: process.env.REDIS_URL || "redis://127.0.0.1:6379",
   },
   services: {
-    booksUrl: process.env.BOOKS_SERVICE_URL || "http://localhost:3003",
+    booksUrl: (process.env.BOOKS_SERVICE_URL || "http://localhost:3003").trim(),
   },
 };
