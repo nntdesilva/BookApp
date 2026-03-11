@@ -4,13 +4,15 @@ All notable changes to the BookApp project are documented in the [changelogs](./
 
 ## Quick Links
 
-- **[Latest Version: v0.11.1](./changelogs/v0.11.1.md)** - 2026-03-04
-- **[Unreleased]** - 2026-03-11
+- **[Latest Version: v0.11.2](./changelogs/v0.11.2.md)** - 2026-03-11
+- **[v0.11.1](./changelogs/v0.11.1.md)** - 2026-03-04
 - **[Version History](./changelogs/README.md)** - Browse all versions
 
 ## Recent Updates
 
-### [Unreleased] - 2026-03-11
+### [v0.11.2](./changelogs/v0.11.2.md) - 2026-03-11
+
+Bug Fix: Added detailed debug logging to the gateway login and signup routes to diagnose auth failures in AWS App Runner. Each login/signup attempt now logs the target auth-service URL, fetch-level errors with cause, response parse errors, and the HTTP status/success from the auth service. All service URLs are also logged at startup so misconfigured env vars are immediately visible in CloudWatch.
 
 Bug Fix: Fixed login and signup failures caused by a trailing space in the `AUTH_SERVICE_URL` environment variable on AWS App Runner. Added `.trim()` to all service URL reads in `gateway/config/appConfig.js`, `chat-service/config/appConfig.js`, and `analysis-service/config/appConfig.js` to guard against whitespace in env vars. Also corrected missing inter-service URLs on App Runner: gateway was missing `CHAT_SERVICE_URL` and `FAVORITES_SERVICE_URL`; chat-service was missing `FAVORITES_SERVICE_URL`, `BOOKS_SERVICE_URL`, and `ANALYSIS_SERVICE_URL`; analysis-service was missing `BOOKS_SERVICE_URL`. All services were falling back to localhost defaults in production. Updated all three App Runner services directly.
 
