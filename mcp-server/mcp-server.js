@@ -150,10 +150,20 @@ function registerTools(server) {
 async function startStdio() {
   const { StdioServerTransport } = require("@modelcontextprotocol/sdk/server/stdio.js");
   console.log = (...args) => console.error(...args);
+  const e = (name) => process.env[name] !== undefined ? "set" : "NOT SET (using default)";
+  console.error("[mcp-server] ── startup config (stdio) ──────────────────────────");
+  console.error(`[mcp-server] MCP_TRANSPORT          : set → stdio`);
+  console.error(`[mcp-server] MCP_USER_ID            : ${e("MCP_USER_ID")} → ${MCP_USER_ID || "(empty)"}`);
+  console.error(`[mcp-server] FAVORITES_SERVICE_URL  : ${e("FAVORITES_SERVICE_URL")} → ${FAVORITES_URL}`);
+  console.error(`[mcp-server] BOOKS_SERVICE_URL      : ${e("BOOKS_SERVICE_URL")} → ${BOOKS_URL}`);
+  console.error(`[mcp-server] ANALYSIS_SERVICE_URL   : ${e("ANALYSIS_SERVICE_URL")} → ${ANALYSIS_URL}`);
+  console.error("[mcp-server] ─────────────────────────────────────────────────────");
+  if (!process.env.MCP_USER_ID) console.error("[mcp-server] WARNING: MCP_USER_ID not set — all tool calls will have no user identity");
   const server = new McpServer({ name: "book-app-tools", version: "2.0.0" });
   registerTools(server);
   const transport = new StdioServerTransport();
   await server.connect(transport);
+  console.error(`[mcp-server] stdio transport connected and ready`);
 }
 
 async function startHttp() {
@@ -218,7 +228,17 @@ async function startHttp() {
   });
 
   app.listen(PORT, "0.0.0.0", () => {
-    console.log(`[mcp-server] HTTP server listening on port ${PORT}`);
+    const e = (name) => process.env[name] !== undefined ? "set" : "NOT SET (using default)";
+    console.log("[mcp-server] ── startup config (http) ──────────────────────────");
+    console.log(`[mcp-server] MCP_TRANSPORT          : set → http`);
+    console.log(`[mcp-server] MCP_PORT               : ${e("MCP_PORT")} → ${PORT}`);
+    console.log(`[mcp-server] MCP_API_KEY            : ${e("MCP_API_KEY")} (auth enabled=${!!API_KEY})`);
+    console.log(`[mcp-server] MCP_USER_ID            : ${e("MCP_USER_ID")} → ${MCP_USER_ID || "(empty)"}`);
+    console.log(`[mcp-server] FAVORITES_SERVICE_URL  : ${e("FAVORITES_SERVICE_URL")} → ${FAVORITES_URL}`);
+    console.log(`[mcp-server] BOOKS_SERVICE_URL      : ${e("BOOKS_SERVICE_URL")} → ${BOOKS_URL}`);
+    console.log(`[mcp-server] ANALYSIS_SERVICE_URL   : ${e("ANALYSIS_SERVICE_URL")} → ${ANALYSIS_URL}`);
+    console.log("[mcp-server] ─────────────────────────────────────────────────────");
+    if (!process.env.MCP_USER_ID) console.warn("[mcp-server] WARNING: MCP_USER_ID not set — all tool calls will have no user identity");
   });
 }
 
