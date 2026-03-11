@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Latest Versions
 
+- **[v0.11.5](v0.11.5.md)** - 2026-03-11
+
+  - Bug Fix: Diagnostic logging for post-login redirect loop
+  - `verifyToken` logs cookie presence, `jwt.verify` error name/message, and secret length
+  - `requireAuth` and `redirectIfAuth` log every redirect decision
+  - Login/signup handlers log cookie options at `Set-Cookie` time; `GET /` logs arriving cookie names
+
 - **[v0.10.1](v0.10.1.md)** - 2026-02-26
 
   - MCP for Claude Code: Streamable HTTP transport + AWS App Runner deployment
