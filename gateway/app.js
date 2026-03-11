@@ -77,6 +77,7 @@ app.post("/login", redirectIfAuth, async (req, res) => {
     }
 
     res.cookie(config.jwt.cookieName, data.token, config.jwt.cookieOptions);
+    console.log(`[gateway] Login: setting cookie '${config.jwt.cookieName}' token_length=${data.token.length} secure=${config.jwt.cookieOptions.secure} sameSite=${config.jwt.cookieOptions.sameSite} httpOnly=${config.jwt.cookieOptions.httpOnly}`);
     res.redirect("/");
   } catch (error) {
     console.error("[gateway] Login unexpected error:", error.message, error.stack);
@@ -129,6 +130,7 @@ app.post("/signup", redirectIfAuth, async (req, res) => {
     }
 
     res.cookie(config.jwt.cookieName, data.token, config.jwt.cookieOptions);
+    console.log(`[gateway] Signup: setting cookie '${config.jwt.cookieName}' token_length=${data.token.length} secure=${config.jwt.cookieOptions.secure} sameSite=${config.jwt.cookieOptions.sameSite} httpOnly=${config.jwt.cookieOptions.httpOnly}`);
     res.redirect("/");
   } catch (error) {
     console.error("[gateway] Signup unexpected error:", error.message, error.stack);
@@ -143,7 +145,10 @@ app.post("/logout", (_req, res) => {
   res.redirect("/login");
 });
 
-app.get("/", requireAuth, (_req, res) => {
+app.get("/", (req, _res, next) => {
+  console.log(`[gateway] GET /: cookies present: [${Object.keys(req.cookies || {}).join(", ") || "none"}]`);
+  next();
+}, requireAuth, (_req, res) => {
   res.render("books/index", { error: null });
 });
 
