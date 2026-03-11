@@ -538,7 +538,6 @@ jobs:
           [ -z "$ECR_ACCESS_ROLE_ARN" ]             && missing+=("ECR_ACCESS_ROLE_ARN")
           [ -z "$ANALYSIS_APPRUNNER_SERVICE_ARN" ]  && missing+=("ANALYSIS_APPRUNNER_SERVICE_ARN")
           [ -z "$ANTHROPIC_API_KEY" ]               && missing+=("ANTHROPIC_API_KEY")
-          [ -z "$REDIS_URL" ]                       && missing+=("REDIS_URL")
           [ -z "$BOOKS_SERVICE_URL" ]               && missing+=("BOOKS_SERVICE_URL")
           if [ ${#missing[@]} -ne 0 ]; then
             echo "ERROR: Missing GitHub secrets:"
@@ -655,7 +654,6 @@ jobs:
           [ -z "$ECR_ACCESS_ROLE_ARN" ]          && missing+=("ECR_ACCESS_ROLE_ARN")
           [ -z "$CHAT_APPRUNNER_SERVICE_ARN" ]   && missing+=("CHAT_APPRUNNER_SERVICE_ARN")
           [ -z "$ANTHROPIC_API_KEY" ]            && missing+=("ANTHROPIC_API_KEY")
-          [ -z "$REDIS_URL" ]                    && missing+=("REDIS_URL")
           [ -z "$FAVORITES_SERVICE_URL" ]        && missing+=("FAVORITES_SERVICE_URL")
           [ -z "$BOOKS_SERVICE_URL" ]            && missing+=("BOOKS_SERVICE_URL")
           [ -z "$ANALYSIS_SERVICE_URL" ]         && missing+=("ANALYSIS_SERVICE_URL")
