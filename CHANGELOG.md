@@ -4,7 +4,8 @@ All notable changes to the BookApp project are documented in the [changelogs](./
 
 ## Quick Links
 
-- **[Latest Version: v0.11.5](./changelogs/v0.11.5.md)** - 2026-03-11
+- **[Latest Version: v0.11.6](./changelogs/v0.11.6.md)** - 2026-03-12
+- **[v0.11.5](./changelogs/v0.11.5.md)** - 2026-03-11
 - **[v0.11.4](./changelogs/v0.11.4.md)** - 2026-03-11
 - **[v0.11.3](./changelogs/v0.11.3.md)** - 2026-03-11
 - **[v0.11.2](./changelogs/v0.11.2.md)** - 2026-03-11
@@ -12,6 +13,10 @@ All notable changes to the BookApp project are documented in the [changelogs](./
 - **[Version History](./changelogs/README.md)** - Browse all versions
 
 ## Recent Updates |
+
+### [v0.11.6](./changelogs/v0.11.6.md) - 2026-03-12
+
+Chore: Replaced all `console.log/warn/error` calls across all six services (gateway, auth-service, favorites-service, chat-service, books-service, analysis-service) with [pino](https://getpino.io/) structured JSON logging. Each service has a `config/logger.js` that outputs plain newline-delimited JSON in production (one queryable object per log line) and colorized human-readable output via `pino-pretty` in development. Every module creates a child logger with a `component` field so logs can be filtered by both `service` and `component` in CloudWatch Logs Insights. Error objects are serialized automatically with `type`, `message`, and `stack`. All 27 source files updated; `pino` and `pino-pretty` added as dependencies in all six `package.json` files.
 
 ### [v0.11.5](./changelogs/v0.11.5.md) - 2026-03-11
 

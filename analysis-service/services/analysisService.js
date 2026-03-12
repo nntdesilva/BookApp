@@ -7,6 +7,7 @@
 const Anthropic = require("@anthropic-ai/sdk");
 const { toFile } = require("@anthropic-ai/sdk");
 const config = require("../config/appConfig");
+const logger = require("../config/logger").child({ component: "analysisService" });
 
 let _anthropic = null;
 
@@ -18,15 +19,26 @@ function getClient() {
 }
 
 async function fetchBookText(bookTitle) {
-  const response = await fetch(`${config.services.booksUrl}/api/books/text`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ bookTitle }),
-  });
-  if (!response.ok) {
-    return { success: false, error: `Books service error: ${response.status}` };
+  const url = `${config.services.booksUrl}/api/books/text`;
+  logger.info({ event: "fetch_book_text_req", bookTitle, url });
+  const t0 = Date.now();
+  try {
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ bookTitle }),
+    });
+    if (!response.ok) {
+      logger.error({ event: "fetch_book_text_books_service_error", httpStatus: response.status, bookTitle });
+      return { success: false, error: `Books service error: ${response.status}` };
+    }
+    const data = await response.json();
+    logger.info({ event: "fetch_book_text_res", bookTitle, success: data.success, textLength: data.text ? data.text.length : 0, durationMs: Date.now() - t0 });
+    return data;
+  } catch (err) {
+    logger.error({ event: "fetch_book_text_network_error", bookTitle, durationMs: Date.now() - t0, err });
+    return { success: false, error: err.message };
   }
-  return response.json();
 }
 
 const CODE_EXECUTION_SYSTEM = `You are a precise text analysis engine. The book's full text has been uploaded as a file into this container.
@@ -60,11 +72,15 @@ CHART TYPES: bar→"bar", pie→"pie" (hover: label+percent+value), line→"scat
  */
 async function analyzeBookStatistics(bookTitle, question) {
   let uploadedFileId = null;
+  const t0 = Date.now();
+
+  logger.info({ event: "analyze_stats_start", bookTitle, questionLength: question ? question.length : 0, model: config.claude.model });
 
   try {
     const bookResult = await fetchBookText(bookTitle);
 
     if (!bookResult.success) {
+      logger.warn({ event: "analyze_stats_aborted", reason: "book_fetch_failed", bookTitle, error: bookResult.error });
       return {
         success: false,
         error: bookResult.error,
@@ -75,6 +91,8 @@ async function analyzeBookStatistics(bookTitle, question) {
     // Upload book text via Files API so it goes directly into the code
     // execution container's filesystem — avoids context window limits
     // for very large books (e.g. Bleak House at ~1M characters).
+    const uploadT0 = Date.now();
+    logger.info({ event: "file_upload_start", bookTitle, textLength: bookResult.text.length });
     const uploadedFile = await getClient().beta.files.upload({
       file: await toFile(
         Buffer.from(bookResult.text, "utf-8"),
@@ -84,6 +102,7 @@ async function analyzeBookStatistics(bookTitle, question) {
       betas: ["files-api-2025-04-14"],
     });
     uploadedFileId = uploadedFile.id;
+    logger.info({ event: "file_upload_complete", fileId: uploadedFileId, durationMs: Date.now() - uploadT0 });
 
     const userContent = [
       {
@@ -102,6 +121,8 @@ async function analyzeBookStatistics(bookTitle, question) {
 
     const messages = [{ role: "user", content: userContent }];
 
+    logger.info({ event: "code_execution_call", bookTitle, turn: 1 });
+    const callT0 = Date.now();
     let response = await getClient().beta.messages.create({
       model: config.claude.model,
       max_tokens: 16384,
@@ -110,6 +131,7 @@ async function analyzeBookStatistics(bookTitle, question) {
       betas: ["files-api-2025-04-14"],
       tools: [{ type: "code_execution_20250825", name: "code_execution" }],
     });
+    logger.info({ event: "code_execution_turn_complete", turn: 1, stopReason: response.stop_reason, inputTokens: response.usage?.input_tokens, outputTokens: response.usage?.output_tokens, durationMs: Date.now() - callT0 });
 
     let allTextBlocks = [];
     allTextBlocks.push(
@@ -141,7 +163,10 @@ async function analyzeBookStatistics(bookTitle, question) {
         params.container = response.container.id;
       }
 
+      const contT0 = Date.now();
+      logger.info({ event: "code_execution_continuation", bookTitle, continuation: continuations, maxContinuations: MAX_CONTINUATIONS, containerId: response.container?.id });
       response = await getClient().beta.messages.create(params);
+      logger.info({ event: "code_execution_continuation_complete", continuation: continuations, stopReason: response.stop_reason, outputTokens: response.usage?.output_tokens, durationMs: Date.now() - contT0 });
 
       allTextBlocks.push(
         ...response.content.filter((block) => block.type === "text"),
@@ -151,6 +176,7 @@ async function analyzeBookStatistics(bookTitle, question) {
     const answer = allTextBlocks.map((block) => block.text).join("\n");
 
     if (!answer.trim()) {
+      logger.warn({ event: "analyze_stats_no_answer", bookTitle, totalTurns: continuations + 1 });
       return {
         success: false,
         error: "Analysis did not produce a result",
@@ -158,6 +184,7 @@ async function analyzeBookStatistics(bookTitle, question) {
       };
     }
 
+    logger.info({ event: "analyze_stats_complete", bookTitle, answerLength: answer.length, totalTurns: continuations + 1, durationMs: Date.now() - t0 });
     return {
       success: true,
       answer,
@@ -165,7 +192,7 @@ async function analyzeBookStatistics(bookTitle, question) {
       authors: bookResult.authors,
     };
   } catch (error) {
-    console.error("Error analyzing book statistics:", error);
+    logger.error({ event: "analyze_stats_error", bookTitle, durationMs: Date.now() - t0, err: error });
     return {
       success: false,
       error: error.message || "Failed to analyze book statistics",
@@ -178,11 +205,9 @@ async function analyzeBookStatistics(bookTitle, question) {
         await getClient().beta.files.delete(uploadedFileId, {
           betas: ["files-api-2025-04-14"],
         });
+        logger.info({ event: "file_cleanup_complete", fileId: uploadedFileId });
       } catch (cleanupErr) {
-        console.warn(
-          "Failed to clean up uploaded book file:",
-          cleanupErr.message,
-        );
+        logger.warn({ event: "file_cleanup_failed", fileId: uploadedFileId, err: cleanupErr });
       }
     }
   }
@@ -270,6 +295,8 @@ async function generateVisualization(
   authors,
   chartType,
 ) {
+  const t0 = Date.now();
+  logger.info({ event: "generate_viz_start", bookTitle, chartType, analysisDataLength: analysisData ? analysisData.length : 0 });
   try {
     const messages = [
       {
@@ -285,6 +312,8 @@ async function generateVisualization(
       },
     ];
 
+    logger.info({ event: "viz_claude_call", bookTitle, chartType, turn: 1 });
+    const callT0 = Date.now();
     let response = await getClient().beta.messages.create({
       model: config.claude.model,
       max_tokens: 16384,
@@ -293,6 +322,7 @@ async function generateVisualization(
       betas: ["files-api-2025-04-14"],
       tools: [{ type: "code_execution_20250825", name: "code_execution" }],
     });
+    logger.info({ event: "viz_turn_complete", turn: 1, stopReason: response.stop_reason, outputTokens: response.usage?.output_tokens, durationMs: Date.now() - callT0 });
 
     let html = extractHtmlFromResponse(response);
 
@@ -327,14 +357,19 @@ async function generateVisualization(
         params.container = response.container.id;
       }
 
+      const contT0 = Date.now();
+      logger.info({ event: "viz_continuation", bookTitle, continuation: continuations, maxContinuations: MAX_CONTINUATIONS, htmlFoundSoFar: !!html });
       response = await getClient().beta.messages.create(params);
+      logger.info({ event: "viz_continuation_complete", continuation: continuations, stopReason: response.stop_reason, durationMs: Date.now() - contT0 });
       html = extractHtmlFromResponse(response);
     }
 
     if (!html) {
+      logger.error({ event: "viz_no_html_produced", bookTitle, chartType, totalTurns: continuations + 1, durationMs: Date.now() - t0 });
       throw new Error("Code execution did not produce valid HTML visualization");
     }
 
+    logger.info({ event: "generate_viz_complete", bookTitle, chartType, htmlLength: html.length, totalTurns: continuations + 1, durationMs: Date.now() - t0 });
     return {
       success: true,
       html: html,
@@ -342,7 +377,7 @@ async function generateVisualization(
       authors: authors,
     };
   } catch (error) {
-    console.error("Error generating visualization:", error);
+    logger.error({ event: "generate_viz_error", bookTitle, chartType, durationMs: Date.now() - t0, err: error });
     return {
       success: false,
       error: error.message || "Failed to generate visualization",

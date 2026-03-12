@@ -1,5 +1,6 @@
 const Anthropic = require("@anthropic-ai/sdk");
 const config = require("../config/appConfig");
+const logger = require("../config/logger").child({ component: "aiService" });
 
 let _anthropic = null;
 
@@ -23,10 +24,12 @@ async function callWithRetry(fn) {
         (err?.message && err.message.includes("overloaded_error"));
       if (isOverloaded && attempt < MAX_RETRIES) {
         const delay = RETRY_BASE_DELAY_MS * Math.pow(2, attempt);
+        logger.warn({ event: "claude_overloaded_retry", attempt: attempt + 1, maxAttempts: MAX_RETRIES + 1, delayMs: delay, status: err?.status });
         await new Promise((resolve) => setTimeout(resolve, delay));
         continue;
       }
       if (isOverloaded) {
+        logger.error({ event: "claude_overloaded_exhausted", maxAttempts: MAX_RETRIES + 1 });
         throw new Error(
           "The AI service is temporarily busy. Please try again in a moment.",
         );
@@ -270,6 +273,7 @@ const ALL_TOOLS = [
 ];
 
 async function generateChatResponse(message, conversationHistory = []) {
+  const t0 = Date.now();
   try {
     if (!message || typeof message !== "string") {
       throw new Error("Invalid message format");
@@ -283,6 +287,8 @@ async function generateChatResponse(message, conversationHistory = []) {
       ...conversationHistory,
       { role: "user", content: message },
     ];
+
+    logger.info({ event: "claude_call", model: config.claude.model, historyMessages: conversationHistory.length, toolCount: ALL_TOOLS.length });
 
     const response = await callWithRetry(() =>
       getClient().messages.create({
@@ -299,7 +305,18 @@ async function generateChatResponse(message, conversationHistory = []) {
       (block) => block.type === "tool_use",
     );
 
+    logger.info({
+      event: "claude_response",
+      stopReason: response.stop_reason,
+      inputTokens: response.usage?.input_tokens,
+      outputTokens: response.usage?.output_tokens,
+      toolCallCount: toolUseBlocks.length,
+      durationMs: Date.now() - t0,
+    });
+
     if (toolUseBlocks.length > 0) {
+      const callNames = toolUseBlocks.map((b) => b.name);
+      logger.info({ event: "tool_calls_requested", functions: callNames });
       return {
         success: true,
         requiresFunctionExecution: true,
@@ -333,7 +350,7 @@ async function generateChatResponse(message, conversationHistory = []) {
       conversationHistory: updatedHistory,
     };
   } catch (error) {
-    console.error("[chat-service] Error generating chat response:", error);
+    logger.error({ event: "generate_chat_response_failed", durationMs: Date.now() - t0, err: error });
     return {
       error: error.message || "Failed to generate response. Please try again.",
     };
@@ -345,6 +362,7 @@ async function continueAfterFunctionExecution(
   assistantMessage,
   functionResults,
 ) {
+  const t0 = Date.now();
   try {
     const assistantContent = assistantMessage.content;
 
@@ -359,6 +377,9 @@ async function continueAfterFunctionExecution(
       { role: "assistant", content: assistantContent },
       { role: "user", content: toolResultContent },
     ];
+
+    const resultNames = functionResults.map((r) => r.name);
+    logger.info({ event: "claude_continuation", completedFunctions: resultNames, model: config.claude.model });
 
     const response = await callWithRetry(() =>
       getClient().messages.create({
@@ -375,7 +396,18 @@ async function continueAfterFunctionExecution(
       (block) => block.type === "tool_use",
     );
 
+    logger.info({
+      event: "claude_continuation_response",
+      stopReason: response.stop_reason,
+      inputTokens: response.usage?.input_tokens,
+      outputTokens: response.usage?.output_tokens,
+      furtherToolCallCount: toolUseBlocks.length,
+      durationMs: Date.now() - t0,
+    });
+
     if (toolUseBlocks.length > 0) {
+      const callNames = toolUseBlocks.map((b) => b.name);
+      logger.info({ event: "further_tool_calls_requested", functions: callNames });
       return {
         success: true,
         requiresFunctionExecution: true,
@@ -411,7 +443,7 @@ async function continueAfterFunctionExecution(
       conversationHistory: updatedHistory,
     };
   } catch (error) {
-    console.error("[chat-service] Error continuing after tool execution:", error);
+    logger.error({ event: "continue_after_function_failed", durationMs: Date.now() - t0, err: error });
     return {
       error: error.message || "Failed to generate response. Please try again.",
     };
