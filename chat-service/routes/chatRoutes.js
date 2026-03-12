@@ -6,6 +6,7 @@ const favoritesClient = require("../clients/favoritesClient");
 const booksClient = require("../clients/booksClient");
 const analysisClient = require("../clients/analysisClient");
 const config = require("../config/appConfig");
+const logger = require("../config/logger").child({ component: "chatRoutes" });
 
 const router = express.Router();
 
@@ -56,29 +57,36 @@ async function executeFunction(userId, functionName, args) {
 }
 
 router.post("/chat", async (req, res) => {
+  const t0 = Date.now();
   try {
     const userId = req.headers["x-user-id"];
     if (!userId) {
+      logger.warn({ event: "chat_rejected", reason: "missing_user_id" });
       return res.status(401).json({ error: "Not authenticated" });
     }
 
     const { message } = req.body;
+    logger.info({ event: "chat_request", userId, messageLength: message ? String(message).length : 0 });
 
     const validation = validateMessage(message);
     if (!validation.valid) {
+      logger.warn({ event: "chat_rejected", reason: "invalid_message", validationError: validation.error, userId });
       return res.status(400).json({ error: validation.error });
     }
 
     if (!config.claude.apiKey) {
+      logger.error({ event: "chat_rejected", reason: "no_api_key" });
       return res.status(500).json({ error: "Claude API key is not configured." });
     }
 
     await conversationService.initializeConversation(userId);
     const history = await conversationService.getConversationHistory(userId);
+    logger.info({ event: "history_loaded", userId, historyLength: history.length });
 
     let result = await aiService.generateChatResponse(message, history);
 
     if (result.error) {
+      logger.error({ event: "claude_initial_call_failed", userId, error: result.error });
       return res.status(500).json({ error: result.error });
     }
 
@@ -93,13 +101,17 @@ router.post("/chat", async (req, res) => {
       toolRound < MAX_TOOL_ROUNDS
     ) {
       toolRound++;
+      const callNames = result.functionCalls.map((c) => c.name);
+      logger.info({ event: "tool_round_start", userId, round: toolRound, maxRounds: MAX_TOOL_ROUNDS, functions: callNames });
 
       const functionResults = await Promise.all(
-        result.functionCalls.map(async (call) => ({
-          id: call.id,
-          name: call.name,
-          result: await executeFunction(userId, call.name, call.arguments),
-        })),
+        result.functionCalls.map(async (call) => {
+          const callT0 = Date.now();
+          logger.info({ event: "function_executing", userId, functionName: call.name, args: call.arguments });
+          const fnResult = await executeFunction(userId, call.name, call.arguments);
+          logger.info({ event: "function_complete", userId, functionName: call.name, success: fnResult?.success ?? null, durationMs: Date.now() - callT0 });
+          return { id: call.id, name: call.name, result: fnResult };
+        }),
       );
 
       const sanitizedResults = functionResults.map((fr) => {
@@ -109,6 +121,7 @@ router.post("/chat", async (req, res) => {
           fr.result.html
         ) {
           visualizationHtml = fr.result.html;
+          logger.info({ event: "visualization_generated", userId, bookTitle: fr.result.bookTitle, htmlLength: fr.result.html.length });
           return {
             ...fr,
             result: {
@@ -130,8 +143,13 @@ router.post("/chat", async (req, res) => {
       );
 
       if (result.error) {
+        logger.error({ event: "claude_continuation_failed", userId, toolRound, error: result.error });
         return res.status(500).json({ error: result.error });
       }
+    }
+
+    if (toolRound >= MAX_TOOL_ROUNDS) {
+      logger.warn({ event: "max_tool_rounds_reached", userId, maxRounds: MAX_TOOL_ROUNDS });
     }
 
     const htmlResponse = tagService.convertTagsToHTML(result.response);
@@ -146,18 +164,15 @@ router.post("/chat", async (req, res) => {
       config.conversation.maxHistoryMessages,
     );
 
-    const responsePayload = {
-      success: true,
-      response: htmlResponse,
-    };
-
+    const responsePayload = { success: true, response: htmlResponse };
     if (visualizationHtml) {
       responsePayload.visualization = visualizationHtml;
     }
 
+    logger.info({ event: "chat_complete", userId, toolRounds: toolRound, hasVisualization: !!visualizationHtml, durationMs: Date.now() - t0 });
     res.json(responsePayload);
   } catch (error) {
-    console.error("[chat-service] Error in chat:", error);
+    logger.error({ event: "chat_unexpected_error", userId: req.headers["x-user-id"], durationMs: Date.now() - t0, err: error });
     res.status(500).json({
       error: "An error occurred while processing your message. Please try again.",
     });
@@ -168,13 +183,16 @@ router.post("/clear", async (req, res) => {
   try {
     const userId = req.headers["x-user-id"];
     if (!userId) {
+      logger.warn({ event: "clear_rejected", reason: "missing_user_id" });
       return res.status(401).json({ error: "Not authenticated" });
     }
 
+    logger.info({ event: "clear_request", userId });
     await conversationService.clearConversationHistory(userId);
+    logger.info({ event: "clear_success", userId });
     res.json({ success: true, message: "Conversation history cleared" });
   } catch (error) {
-    console.error("[chat-service] Error clearing history:", error);
+    logger.error({ event: "clear_error", userId: req.headers["x-user-id"], err: error });
     res.status(500).json({ error: "Failed to clear conversation history" });
   }
 });
@@ -183,13 +201,16 @@ router.get("/stats", async (req, res) => {
   try {
     const userId = req.headers["x-user-id"];
     if (!userId) {
+      logger.warn({ event: "stats_rejected", reason: "missing_user_id" });
       return res.status(401).json({ error: "Not authenticated" });
     }
 
+    logger.info({ event: "stats_request", userId });
     const stats = await conversationService.getConversationStats(userId);
+    logger.info({ event: "stats_success", userId, totalMessages: stats.totalMessages });
     res.json({ success: true, stats });
   } catch (error) {
-    console.error("[chat-service] Error getting stats:", error);
+    logger.error({ event: "stats_error", userId: req.headers["x-user-id"], err: error });
     res.status(500).json({ error: "Failed to get conversation statistics" });
   }
 });

@@ -1,66 +1,70 @@
 const jwt = require("jsonwebtoken");
 const config = require("../config/appConfig");
+const logger = require("../config/logger").child({ component: "auth" });
 
 function verifyToken(req) {
   const token = req.cookies && req.cookies[config.jwt.cookieName];
   if (!token) {
-    console.log(
-      `[gateway:auth] verifyToken: no '${config.jwt.cookieName}' cookie —` +
-      ` cookies present: [${Object.keys(req.cookies || {}).join(", ") || "none"}]` +
-      ` path=${req.path}`
-    );
+    logger.info({
+      event: "verify_token_no_cookie",
+      cookieName: config.jwt.cookieName,
+      cookiesPresent: Object.keys(req.cookies || {}),
+      path: req.path,
+    });
     return null;
   }
 
-  console.log(
-    `[gateway:auth] verifyToken: found cookie '${config.jwt.cookieName}'` +
-    ` token_length=${token.length}` +
-    ` secret_length=${config.jwt.secret.length}` +
-    ` path=${req.path}`
-  );
+  logger.info({
+    event: "verify_token_found",
+    cookieName: config.jwt.cookieName,
+    tokenLength: token.length,
+    path: req.path,
+  });
 
   try {
     const decoded = jwt.verify(token, config.jwt.secret);
-    console.log(
-      `[gateway:auth] verifyToken: ok — user=${decoded.username}` +
-      ` userId=${decoded.userId}` +
-      ` iat=${decoded.iat} exp=${decoded.exp}` +
-      ` now=${Math.floor(Date.now() / 1000)}` +
-      ` expires_in=${decoded.exp - Math.floor(Date.now() / 1000)}s`
-    );
+    logger.info({
+      event: "verify_token_ok",
+      username: decoded.username,
+      userId: decoded.userId,
+      iat: decoded.iat,
+      exp: decoded.exp,
+      expiresInSeconds: decoded.exp - Math.floor(Date.now() / 1000),
+    });
     return decoded;
   } catch (err) {
-    console.warn(
-      `[gateway:auth] verifyToken: jwt.verify FAILED — ${err.name}: ${err.message}` +
-      ` secret_length=${config.jwt.secret.length}` +
-      ` token_length=${token.length}` +
-      ` path=${req.path}`
-    );
+    logger.warn({
+      event: "verify_token_failed",
+      reason: err.name,
+      message: err.message,
+      tokenLength: token.length,
+      path: req.path,
+    });
     return null;
   }
 }
 
 function requireAuth(req, res, next) {
-  console.log(`[gateway:auth] requireAuth: checking ${req.method} ${req.path}`);
+  logger.info({ event: "require_auth_check", method: req.method, path: req.path });
   const decoded = verifyToken(req);
   if (!decoded) {
-    console.warn(`[gateway:auth] requireAuth: no valid token — redirecting to /login (${req.method} ${req.path})`);
+    logger.warn({ event: "require_auth_denied", method: req.method, path: req.path });
     return res.redirect("/login");
   }
   req.user = { _id: decoded.userId, username: decoded.username };
   res.locals.currentUser = req.user;
-  console.log(`[gateway:auth] requireAuth: authorized user=${decoded.username}`);
+  logger.info({ event: "require_auth_ok", username: decoded.username });
   next();
 }
 
 function redirectIfAuth(req, res, next) {
-  console.log(`[gateway:auth] redirectIfAuth: checking ${req.method} ${req.path}`);
+  logger.info({ event: "redirect_if_auth_check", method: req.method, path: req.path });
   const decoded = verifyToken(req);
   if (decoded) {
-    console.log(`[gateway:auth] redirectIfAuth: already authenticated (user=${decoded.username}) — redirecting to /`);
+    logger.info({ event: "redirect_if_auth_redirect", username: decoded.username });
     return res.redirect("/");
   }
-  console.log(`[gateway:auth] redirectIfAuth: not authenticated — proceeding`);
+  logger.info({ event: "redirect_if_auth_proceed" });
   next();
 }
 
@@ -68,7 +72,7 @@ function optionalAuth(req, _res, next) {
   const decoded = verifyToken(req);
   if (decoded) {
     req.user = { _id: decoded.userId, username: decoded.username };
-    console.log(`[gateway:auth] optionalAuth: resolved user=${decoded.username} for ${req.method} ${req.path}`);
+    logger.info({ event: "optional_auth_resolved", username: decoded.username, method: req.method, path: req.path });
   }
   next();
 }

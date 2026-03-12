@@ -1,5 +1,6 @@
 const Redis = require("ioredis");
 const config = require("./appConfig");
+const logger = require("./logger").child({ component: "redis" });
 
 function createInMemoryStore() {
   const store = new Map();
@@ -29,19 +30,19 @@ let redis = createInMemoryStore();
 const client = new Redis(config.redis.url, { lazyConnect: true, enableOfflineQueue: false });
 
 client.on("connect", () => {
-  console.log("[chat-service] Redis connected");
+  logger.info({ event: "redis_connected" });
   redis = client;
 });
 
 client.on("error", (err) => {
   if (redis === client) {
-    console.warn(`[chat-service] Redis error (${err.message}), falling back to in-memory store`);
+    logger.warn({ event: "redis_error_fallback", err, msg: "falling back to in-memory store" });
     redis = createInMemoryStore();
   }
 });
 
 client.connect().catch((err) => {
-  console.warn(`[chat-service] Redis unavailable (${err.message}), using in-memory store`);
+  logger.warn({ event: "redis_unavailable", err, msg: "using in-memory store" });
 });
 
 module.exports = {

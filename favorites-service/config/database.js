@@ -1,20 +1,21 @@
 const mongoose = require("mongoose");
+const logger = require("./logger").child({ component: "database" });
 
 async function connectDB(uri) {
   try {
     await mongoose.connect(uri);
-    console.log("[favorites-service] MongoDB connected");
+    logger.info({ event: "mongodb_connected" });
   } catch (error) {
-    console.error("[favorites-service] MongoDB connection error:", error.message);
+    logger.error({ event: "mongodb_connection_error", err: error });
   }
 }
 
 mongoose.connection.on("disconnected", () => {
-  console.log("[favorites-service] MongoDB disconnected");
+  logger.warn({ event: "mongodb_disconnected" });
 });
 
 mongoose.connection.on("error", (err) => {
-  console.error("[favorites-service] MongoDB error:", err);
+  logger.error({ event: "mongodb_error", err });
 });
 
 module.exports = { connectDB };

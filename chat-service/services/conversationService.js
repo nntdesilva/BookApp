@@ -1,4 +1,5 @@
 const redis = require("../config/redis");
+const logger = require("../config/logger").child({ component: "conversationService" });
 
 const CONV_TTL = 86400; // 24 hours
 
@@ -7,23 +8,50 @@ function redisKey(userId) {
 }
 
 async function initializeConversation(userId) {
-  const existing = await redis.get(redisKey(userId));
-  if (!existing) {
-    await redis.set(redisKey(userId), JSON.stringify([]), "EX", CONV_TTL);
+  try {
+    const existing = await redis.get(redisKey(userId));
+    if (!existing) {
+      await redis.set(redisKey(userId), JSON.stringify([]), "EX", CONV_TTL);
+      logger.info({ event: "conversation_initialized", userId });
+    }
+  } catch (err) {
+    logger.error({ event: "redis_error", operation: "initializeConversation", userId, err });
+    throw err;
   }
 }
 
 async function getConversationHistory(userId) {
-  const raw = await redis.get(redisKey(userId));
-  return raw ? JSON.parse(raw) : [];
+  try {
+    const raw = await redis.get(redisKey(userId));
+    const history = raw ? JSON.parse(raw) : [];
+    if (!raw) {
+      logger.warn({ event: "conversation_not_found", userId, msg: "no key in redis, returning empty history" });
+    }
+    return history;
+  } catch (err) {
+    logger.error({ event: "redis_error", operation: "getConversationHistory", userId, err });
+    throw err;
+  }
 }
 
 async function updateConversationHistory(userId, history) {
-  await redis.set(redisKey(userId), JSON.stringify(history), "EX", CONV_TTL);
+  try {
+    await redis.set(redisKey(userId), JSON.stringify(history), "EX", CONV_TTL);
+    logger.info({ event: "conversation_updated", userId, messageCount: history.length, ttl: CONV_TTL });
+  } catch (err) {
+    logger.error({ event: "redis_error", operation: "updateConversationHistory", userId, err });
+    throw err;
+  }
 }
 
 async function clearConversationHistory(userId) {
-  await redis.del(redisKey(userId));
+  try {
+    await redis.del(redisKey(userId));
+    logger.info({ event: "conversation_cleared", userId });
+  } catch (err) {
+    logger.error({ event: "redis_error", operation: "clearConversationHistory", userId, err });
+    throw err;
+  }
 }
 
 async function getConversationStats(userId) {
@@ -46,8 +74,10 @@ async function trimConversationHistory(userId, maxMessages = 10) {
   const history = await getConversationHistory(userId);
 
   if (history.length > maxMessages * 2) {
+    const before = history.length;
     const trimmedHistory = history.slice(-(maxMessages * 2));
     await updateConversationHistory(userId, trimmedHistory);
+    logger.info({ event: "conversation_trimmed", userId, before, after: trimmedHistory.length, max: maxMessages * 2 });
   }
 }
 

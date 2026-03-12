@@ -6,6 +6,7 @@
 
 const OpenAI = require("openai");
 const config = require("../config/appConfig");
+const logger = require("../config/logger").child({ component: "embeddingService" });
 
 const openai = config.embedding.apiKey
   ? new OpenAI({ apiKey: config.embedding.apiKey })
@@ -20,9 +21,14 @@ const openai = config.embedding.apiKey
 async function generateEmbeddings(texts) {
   const batchSize = config.embedding.batchSize;
   const allEmbeddings = [];
+  const totalBatches = Math.ceil(texts.length / batchSize);
+
+  logger.info({ event: "embeddings_start", totalTexts: texts.length, batchSize, totalBatches, model: config.embedding.model });
+  const t0 = Date.now();
 
   for (let i = 0; i < texts.length; i += batchSize) {
     const batch = texts.slice(i, i + batchSize);
+    const batchNum = Math.floor(i / batchSize) + 1;
 
     const response = await openai.embeddings.create({
       model: config.embedding.model,
@@ -34,8 +40,13 @@ async function generateEmbeddings(texts) {
     for (const item of sorted) {
       allEmbeddings.push(item.embedding);
     }
+
+    if (totalBatches > 1) {
+      logger.info({ event: "embeddings_batch_complete", batch: batchNum, totalBatches, tokens: response.usage?.total_tokens });
+    }
   }
 
+  logger.info({ event: "embeddings_complete", total: allEmbeddings.length, durationMs: Date.now() - t0 });
   return allEmbeddings;
 }
 
@@ -78,6 +89,9 @@ async function findRelatedWords(concept, uniqueWords, threshold) {
   const similarityThreshold =
     threshold !== undefined ? threshold : config.embedding.similarityThreshold;
 
+  logger.info({ event: "find_related_words_start", concept, uniqueWordCount: uniqueWords.length, threshold: similarityThreshold });
+  const t0 = Date.now();
+
   // Embed the concept and all unique words together
   // Put concept first, then all words — single batch pipeline
   const textsToEmbed = [concept, ...uniqueWords];
@@ -104,6 +118,7 @@ async function findRelatedWords(concept, uniqueWords, threshold) {
   // Sort by similarity descending
   relatedWords.sort((a, b) => b.similarity - a.similarity);
 
+  logger.info({ event: "find_related_words_complete", concept, relatedWords: relatedWords.length, durationMs: Date.now() - t0 });
   return relatedWords;
 }
 

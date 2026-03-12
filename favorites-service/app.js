@@ -2,6 +2,7 @@ const express = require("express");
 require("dotenv").config();
 
 const config = require("./config/appConfig");
+const logger = require("./config/logger");
 const { connectDB } = require("./config/database");
 const favoritesRoutes = require("./routes/favoritesRoutes");
 
@@ -19,6 +20,21 @@ const app = express();
 
 app.use(express.json());
 
+// ── Global request logger ────────────────────────────────────────────────────
+app.use((req, res, next) => {
+  res.on("finish", () => {
+    logger.info({
+      event: "request",
+      method: req.method,
+      url: req.originalUrl,
+      status: res.statusCode,
+      userId: req.headers["x-user-id"] || "-",
+      ip: req.ip || "-",
+    });
+  });
+  next();
+});
+
 app.get("/health", (_req, res) => {
   res.json({ status: "ok", service: "favorites-service", uptime: process.uptime() });
 });
@@ -26,21 +42,22 @@ app.get("/health", (_req, res) => {
 app.use("/api/favorites", favoritesRoutes);
 
 app.use((err, _req, res, _next) => {
-  console.error("[favorites-service] Error:", err.stack);
+  logger.error({ event: "unhandled_error", err });
   res.status(500).json({ error: "Internal server error" });
 });
 
 if (require.main === module) {
   app.listen(config.server.port, () => {
     const e = (name) => process.env[name] !== undefined ? "set" : "NOT SET (using default)";
-    console.log("[favorites-service] ── startup config ──────────────────────────");
-    console.log(`[favorites-service] PORT             : ${e("PORT")} → ${config.server.port}`);
-    console.log(`[favorites-service] NODE_ENV         : ${e("NODE_ENV")} → ${config.server.env}`);
-    console.log(`[favorites-service] MONGODB_URI      : ${e("MONGODB_URI")} → ${maskUri(config.mongodb.uri)}`);
-    console.log(`[favorites-service] JWT_SECRET       : ${e("JWT_SECRET")} (length=${config.jwt.secret.length} hint=${config.jwt.secret.slice(0, 4)}...)`);
-    console.log("[favorites-service] ────────────────────────────────────────────");
-    if (!process.env.MONGODB_URI) console.warn("[favorites-service] WARNING: MONGODB_URI not set — using local fallback, will fail in production");
-    if (!process.env.JWT_SECRET)  console.warn("[favorites-service] WARNING: JWT_SECRET not set — using insecure dev default, tokens will mismatch in production");
+    logger.info({
+      event: "startup",
+      port: { status: e("PORT"), value: config.server.port },
+      nodeEnv: { status: e("NODE_ENV"), value: config.server.env },
+      mongodbUri: { status: e("MONGODB_URI"), value: maskUri(config.mongodb.uri) },
+      jwtSecret: { status: e("JWT_SECRET"), length: config.jwt.secret.length, hint: config.jwt.secret.slice(0, 4) + "..." },
+    });
+    if (!process.env.MONGODB_URI) logger.warn({ event: "startup_warning", variable: "MONGODB_URI", msg: "not set — will fail in production" });
+    if (!process.env.JWT_SECRET)  logger.warn({ event: "startup_warning", variable: "JWT_SECRET", msg: "not set — tokens will mismatch in production" });
     connectDB(config.mongodb.uri);
   });
 }
