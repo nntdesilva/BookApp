@@ -34,7 +34,7 @@ describe("POST /api/auth/login", () => {
   });
 
   test("returns 401 when user not found", async () => {
-    User.findOne.mockResolvedValue(null);
+    User.findOne.mockReturnValue({ select: jest.fn().mockResolvedValue(null) });
 
     const res = await request(app)
       .post("/api/auth/login")
@@ -44,8 +44,8 @@ describe("POST /api/auth/login", () => {
   });
 
   test("returns 401 when password is wrong", async () => {
-    const mockUser = { verifyPassword: jest.fn().mockResolvedValue(false) };
-    User.findOne.mockResolvedValue(mockUser);
+    const mockUser = { passwordHash: "hash", verifyPassword: jest.fn().mockResolvedValue(false) };
+    User.findOne.mockReturnValue({ select: jest.fn().mockResolvedValue(mockUser) });
 
     const res = await request(app)
       .post("/api/auth/login")
@@ -57,10 +57,11 @@ describe("POST /api/auth/login", () => {
     const mockUser = {
       _id: "user123",
       username: "testuser",
+      passwordHash: "hash",
       verifyPassword: jest.fn().mockResolvedValue(true),
       toPublic: jest.fn().mockReturnValue({ id: "user123", username: "testuser" }),
     };
-    User.findOne.mockResolvedValue(mockUser);
+    User.findOne.mockReturnValue({ select: jest.fn().mockResolvedValue(mockUser) });
     jwt.sign.mockReturnValue("mocked-token");
 
     const res = await request(app)
@@ -74,7 +75,7 @@ describe("POST /api/auth/login", () => {
   });
 
   test("returns 500 on unexpected error", async () => {
-    User.findOne.mockRejectedValue(new Error("DB error"));
+    User.findOne.mockReturnValue({ select: jest.fn().mockRejectedValue(new Error("DB error")) });
 
     const res = await request(app)
       .post("/api/auth/login")
