@@ -4,7 +4,8 @@ All notable changes to the BookApp project are documented in the [changelogs](./
 
 ## Quick Links
 
-- **[Latest Version: v0.11.6](./changelogs/v0.11.6.md)** - 2026-03-12
+- **[Latest Version: v0.11.7](./changelogs/v0.11.7.md)** - 2026-03-15
+- **[v0.11.6](./changelogs/v0.11.6.md)** - 2026-03-12
 - **[v0.11.5](./changelogs/v0.11.5.md)** - 2026-03-11
 - **[v0.11.4](./changelogs/v0.11.4.md)** - 2026-03-11
 - **[v0.11.3](./changelogs/v0.11.3.md)** - 2026-03-11
@@ -13,6 +14,10 @@ All notable changes to the BookApp project are documented in the [changelogs](./
 - **[Version History](./changelogs/README.md)** - Browse all versions
 
 ## Recent Updates |
+
+### [v0.11.7](./changelogs/v0.11.7.md) - 2026-03-15
+
+Bug Fix: Fixed errors related to smart badging across the application.
 
 ### [v0.11.6](./changelogs/v0.11.6.md) - 2026-03-12
 

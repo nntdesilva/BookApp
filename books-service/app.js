@@ -1,5 +1,7 @@
 const express = require("express");
-require("dotenv").config();
+require("dotenv").config({
+  path: require("path").resolve(__dirname, "../.env"),
+});
 
 const config = require("./config/appConfig");
 const logger = require("./config/logger");
@@ -39,7 +41,7 @@ if (require.main === module) {
     const e = (name) => process.env[name] !== undefined ? "set" : "NOT SET (using default)";
     logger.info({
       event: "startup",
-      port: { status: e("PORT"), value: config.server.port },
+      port: { status: e("BOOKS_SERVICE_PORT"), value: config.server.port },
       nodeEnv: { status: e("NODE_ENV"), value: config.server.env },
       openaiEmbeddingsApiKey: { status: e("OPENAI_EMBEDDINGS_API_KEY"), present: !!config.embedding.apiKey },
       embeddingModel: { status: e("EMBEDDING_MODEL"), value: config.embedding.model },

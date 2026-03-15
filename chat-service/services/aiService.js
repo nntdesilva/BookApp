@@ -24,12 +24,21 @@ async function callWithRetry(fn) {
         (err?.message && err.message.includes("overloaded_error"));
       if (isOverloaded && attempt < MAX_RETRIES) {
         const delay = RETRY_BASE_DELAY_MS * Math.pow(2, attempt);
-        logger.warn({ event: "claude_overloaded_retry", attempt: attempt + 1, maxAttempts: MAX_RETRIES + 1, delayMs: delay, status: err?.status });
+        logger.warn({
+          event: "claude_overloaded_retry",
+          attempt: attempt + 1,
+          maxAttempts: MAX_RETRIES + 1,
+          delayMs: delay,
+          status: err?.status,
+        });
         await new Promise((resolve) => setTimeout(resolve, delay));
         continue;
       }
       if (isOverloaded) {
-        logger.error({ event: "claude_overloaded_exhausted", maxAttempts: MAX_RETRIES + 1 });
+        logger.error({
+          event: "claude_overloaded_exhausted",
+          maxAttempts: MAX_RETRIES + 1,
+        });
         throw new Error(
           "The AI service is temporarily busy. Please try again in a moment.",
         );
@@ -41,21 +50,28 @@ async function callWithRetry(fn) {
 
 const META_PROMPT_SYSTEM = `You are a knowledgeable book expert assistant. Provide accurate book/series information with strict tagging, favorites management, and text analysis.
 
+## OUTPUT FORMAT — CRITICAL
+- Write ALL responses in plain text paragraph format. No markdown headings (#, ##, ###), no horizontal rules (---), no tables (| ... |), no bullet-point-heavy lists.
+- You MAY use emojis freely.
+- You MAY use short bullet points sparingly for genuinely list-like data (e.g. award names), but never for sections that read naturally as prose.
+- Structure your response as flowing paragraphs. Use emojis as inline section indicators if desired (e.g. "📖 Overview — ..."), but never as markdown headings.
+
 ## TAGGING — Only tag real published book titles with ISBNs
 NEVER tag author names, series names, publishers, genres, or characters.
 
 ### Tag Types
-- <original-book>: The specific original book the user searched for. Tag EVERY mention throughout your response.
-- <book-in-series>: Individual books listed when user searched a SERIES NAME. If user searched a specific book in a series: that book = <original-book>, others in series = <book-in-series>.
-- <unrelated-book>: Books unrelated to the original search topic, mentioned in follow-up conversations.
+- <original-book>: Only for the book the user asked about in the very first message of the session, and only if that first message was a standalone book (not a series). This designation is set once at session start and never re-assigned. If the session opened with a series name, <original-book> must never appear anywhere in the session.
+- <book-in-series>: Strictly for books that belong to the series the user originally searched for. Never apply this tag to books from a different series or unrelated standalone books, even if mentioned in the same response.
+- <unrelated-book>: Any book outside the original search topic — including any book the user asks about in a follow-up when the session started with a series name.
 
 ### Decision Flow
-1. Query is a series name → all individual books get <book-in-series>
-2. Query is a specific book → that book gets <original-book> everywhere; other books in same series get <book-in-series>
-3. Follow-up about different topic → new books get <unrelated-book>
+1. First message is a series name → books in that series get <book-in-series>; any book outside that series is <unrelated-book>
+2. First message is a standalone book → that book gets <original-book>; other books in its series get <book-in-series>; books from different topics get <unrelated-book>
+3. Every follow-up message → apply the same rules; the original tag assignments from rule 1 or 2 never change
 
-### Formatting
-- Use complete, correctly-spelled book titles. Same book = same tag throughout. Never nest tags.
+### Tagging rules
+- Wrap EVERY single occurrence of a book title — in every sentence, paragraph, and inline mention. This includes the very first time the book title appears in the response (even if it is the opening sentence). No occurrence may be left untagged.
+- Same book = same tag throughout the entire response without exception. Never nest tags.
 - Auto-correct spelling errors in user queries. Provide comprehensive, informative responses.
 
 ## FAVORITES (add_to_favorites, remove_from_favorites, list_favorites)
@@ -288,7 +304,12 @@ async function generateChatResponse(message, conversationHistory = []) {
       { role: "user", content: message },
     ];
 
-    logger.info({ event: "claude_call", model: config.claude.model, historyMessages: conversationHistory.length, toolCount: ALL_TOOLS.length });
+    logger.info({
+      event: "claude_call",
+      model: config.claude.model,
+      historyMessages: conversationHistory.length,
+      toolCount: ALL_TOOLS.length,
+    });
 
     const response = await callWithRetry(() =>
       getClient().messages.create({
@@ -350,7 +371,11 @@ async function generateChatResponse(message, conversationHistory = []) {
       conversationHistory: updatedHistory,
     };
   } catch (error) {
-    logger.error({ event: "generate_chat_response_failed", durationMs: Date.now() - t0, err: error });
+    logger.error({
+      event: "generate_chat_response_failed",
+      durationMs: Date.now() - t0,
+      err: error,
+    });
     return {
       error: error.message || "Failed to generate response. Please try again.",
     };
@@ -379,7 +404,11 @@ async function continueAfterFunctionExecution(
     ];
 
     const resultNames = functionResults.map((r) => r.name);
-    logger.info({ event: "claude_continuation", completedFunctions: resultNames, model: config.claude.model });
+    logger.info({
+      event: "claude_continuation",
+      completedFunctions: resultNames,
+      model: config.claude.model,
+    });
 
     const response = await callWithRetry(() =>
       getClient().messages.create({
@@ -407,7 +436,10 @@ async function continueAfterFunctionExecution(
 
     if (toolUseBlocks.length > 0) {
       const callNames = toolUseBlocks.map((b) => b.name);
-      logger.info({ event: "further_tool_calls_requested", functions: callNames });
+      logger.info({
+        event: "further_tool_calls_requested",
+        functions: callNames,
+      });
       return {
         success: true,
         requiresFunctionExecution: true,
@@ -443,7 +475,11 @@ async function continueAfterFunctionExecution(
       conversationHistory: updatedHistory,
     };
   } catch (error) {
-    logger.error({ event: "continue_after_function_failed", durationMs: Date.now() - t0, err: error });
+    logger.error({
+      event: "continue_after_function_failed",
+      durationMs: Date.now() - t0,
+      err: error,
+    });
     return {
       error: error.message || "Failed to generate response. Please try again.",
     };

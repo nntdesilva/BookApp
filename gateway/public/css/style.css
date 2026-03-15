@@ -230,16 +230,16 @@ body {
 
 /* CREAM BADGE - Exact Searched Book */
 .book-badge-cream {
-  background-color: rgba(123, 179, 46, 0.1);
-  color: #4e7a10;
-  border-bottom: 1px solid rgba(123, 179, 46, 0.4);
+  background-color: rgba(255, 243, 200, 0.55);
+  color: #8a6010;
+  border-bottom: 1px solid rgba(200, 160, 60, 0.45);
 }
 
 /* GREEN BADGE - Same Series */
 .book-badge-green {
-  background-color: rgba(224, 192, 40, 0.12);
-  color: #7a6008;
-  border-bottom: 1px solid rgba(224, 192, 40, 0.45);
+  background-color: rgba(46, 160, 67, 0.1);
+  color: #1e7a30;
+  border-bottom: 1px solid rgba(46, 160, 67, 0.4);
 }
 
 /* ORANGE BADGE - Unrelated Books */
@@ -686,15 +686,15 @@ body {
 }
 
 .book-tag.original-book {
-  background: rgba(123, 179, 46, 0.1);
-  color: #4e7a10;
-  border-bottom: 2px solid rgba(123, 179, 46, 0.4);
+  background: rgba(255, 243, 200, 0.55);
+  color: #8a6010;
+  border-bottom: 2px solid rgba(200, 160, 60, 0.45);
 }
 
 .book-tag.book-in-series {
-  background: rgba(224, 192, 40, 0.12);
-  color: #7a6008;
-  border-bottom: 2px solid rgba(224, 192, 40, 0.45);
+  background: rgba(46, 160, 67, 0.1);
+  color: #1e7a30;
+  border-bottom: 2px solid rgba(46, 160, 67, 0.4);
 }
 
 .book-tag.unrelated-book {

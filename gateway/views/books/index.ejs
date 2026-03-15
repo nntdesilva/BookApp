@@ -160,4 +160,6 @@
     if (chatInput) {
         chatInput.focus();
     }
+
+    fetch('/clear', { method: 'POST' }).catch(() => {});
 </script>

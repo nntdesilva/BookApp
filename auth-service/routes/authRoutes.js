@@ -17,9 +17,14 @@ router.post("/login", async (req, res) => {
       return res.status(400).json({ error: "Username and password are required." });
     }
 
-    const user = await User.findOne({ username: username.trim() });
+    const user = await User.findOne({ username: username.trim() }).select("+passwordHash");
     if (!user) {
       logger.warn({ event: "login_failed", reason: "user_not_found", username });
+      return res.status(401).json({ error: "Invalid username or password." });
+    }
+
+    if (!user.passwordHash) {
+      logger.warn({ event: "login_failed", reason: "no_password_hash", username, userId: user._id });
       return res.status(401).json({ error: "Invalid username or password." });
     }
 
