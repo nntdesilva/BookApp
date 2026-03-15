@@ -46,6 +46,7 @@ jobs:
               - 'analysis-service/**'
             chat:
               - 'chat-service/**'
+              - '.github/workflows/cd.yml'
             mcp:
               - 'mcp-server/**'
 
@@ -722,6 +723,7 @@ jobs:
                     "FAVORITES_SERVICE_URL": "'"$FAVORITES_SERVICE_URL"'",
                     "BOOKS_SERVICE_URL": "'"$BOOKS_SERVICE_URL"'",
                     "ANALYSIS_SERVICE_URL": "'"$ANALYSIS_SERVICE_URL"'",
+                    "CLAUDE_MODEL": "claude-sonnet-4-6",
                     "NODE_ENV": "production"
                   }
                 }
