@@ -196,7 +196,7 @@ describe("AI Chat Service", () => {
 
   conditionalTest("generates a text response for a general book question", async () => {
     const result = await aiService.generateChatResponse(
-      "What is Pride and Prejudice about? Answer in one sentence.",
+      "Who wrote Pride and Prejudice? Reply in one sentence.",
       [],
     );
 
