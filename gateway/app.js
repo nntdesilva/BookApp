@@ -2,7 +2,9 @@ const express = require("express");
 const path = require("path");
 const cookieParser = require("cookie-parser");
 const ejsMate = require("ejs-mate");
-require("dotenv").config();
+require("dotenv").config({
+  path: require("path").resolve(__dirname, "../.env"),
+});
 
 const config = require("./config/appConfig");
 const logger = require("./config/logger");

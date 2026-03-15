@@ -1,11 +1,11 @@
 module.exports = {
   server: {
-    port: process.env.PORT || 3004,
+    port: process.env.ANALYSIS_SERVICE_PORT || 3004,
     env: process.env.NODE_ENV || "development",
   },
   claude: {
     apiKey: process.env.ANTHROPIC_API_KEY,
-    model: process.env.CLAUDE_MODEL || "claude-sonnet-4-5",
+    model: process.env.CLAUDE_MODEL || "claude-sonnet-4-6",
   },
   redis: {
     url: process.env.REDIS_URL || "redis://127.0.0.1:6379",

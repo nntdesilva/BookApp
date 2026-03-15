@@ -40,6 +40,7 @@ userSchema.statics.register = async function (username, email, password) {
 };
 
 userSchema.methods.verifyPassword = async function (password) {
+  if (!this.passwordHash) return false;
   return bcrypt.compare(password, this.passwordHash);
 };
 

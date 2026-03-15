@@ -152,6 +152,7 @@ router.post("/chat", async (req, res) => {
       logger.warn({ event: "max_tool_rounds_reached", userId, maxRounds: MAX_TOOL_ROUNDS });
     }
 
+    logger.info({ event: "raw_ai_response_before_tag_conversion", userId, rawResponse: result.response });
     const htmlResponse = tagService.convertTagsToHTML(result.response);
 
     await conversationService.updateConversationHistory(

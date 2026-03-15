@@ -24,7 +24,7 @@ jest.mock("@anthropic-ai/sdk", () => {
 jest.mock("../config/appConfig", () => ({
   claude: {
     apiKey: "test-key",
-    model: "claude-sonnet-4-20250514",
+    model: "claude-sonnet-4-6",
   },
   services: {
     booksUrl: "http://localhost:3003",
