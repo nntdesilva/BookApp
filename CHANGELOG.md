@@ -4,7 +4,7 @@ All notable changes to the BookApp project are documented in the [changelogs](./
 
 ## Quick Links
 
-- **[Latest Version: v0.11.9](./changelogs/v0.11.9.md)** - 2026-03-17
+- **[Latest Version: v0.11.10](./changelogs/v0.11.10.md)** - 2026-03-17
 - **[v0.11.6](./changelogs/v0.11.6.md)** - 2026-03-12
 - **[v0.11.5](./changelogs/v0.11.5.md)** - 2026-03-11
 - **[v0.11.4](./changelogs/v0.11.4.md)** - 2026-03-11
@@ -14,6 +14,10 @@ All notable changes to the BookApp project are documented in the [changelogs](./
 - **[Version History](./changelogs/README.md)** - Browse all versions
 
 ## Recent Updates |
+
+### [v0.11.10](./changelogs/v0.11.10.md) - 2026-03-17
+
+Bug Fix: Strengthened proactive tool-call prevention across all AI tools. The chat assistant now answers general book questions (plot, themes, characters, author info) from its own knowledge and only invokes tools when the user explicitly requests an action. Added "ONLY call when the user explicitly asks... Never call proactively" to every tool description: favorites, word search, semantic search, book statistics, and visualization. Reorganized the meta-prompt structure for clarity.
 
 ### [v0.11.9](./changelogs/v0.11.9.md) - 2026-03-17
 

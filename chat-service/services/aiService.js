@@ -48,31 +48,30 @@ async function callWithRetry(fn) {
   }
 }
 
-const META_PROMPT_SYSTEM = `You are a knowledgeable book expert assistant. Provide accurate book/series information with strict tagging, favorites management, and text analysis.
+const META_PROMPT_SYSTEM = `You are a book assistant. Respond from your own knowledge unless the user explicitly requests an action that requires a tool call. NEVER call any tool proactively — only call a tool when the user's message directly and explicitly requests it. Auto-correct spelling errors in user queries.
 
-## OUTPUT FORMAT — CRITICAL
-- Write ALL responses in plain text paragraph format. No markdown headings (#, ##, ###), no horizontal rules (---), no tables (| ... |), no bullet-point-heavy lists.
-- You MAY use emojis freely.
-- You MAY use short bullet points sparingly for genuinely list-like data (e.g. award names), but never for sections that read naturally as prose.
-- Structure your response as flowing paragraphs. Use emojis as inline section indicators if desired (e.g. "📖 Overview — ..."), but never as markdown headings.
+## TAGGING
+Tag EVERY occurrence of a real published book title (has ISBN) in your responses. Never tag author names, series names, publishers, genres, or characters. Same book = same tag throughout. Never nest tags.
 
-## TAGGING — Only tag real published book titles with ISBNs
-NEVER tag author names, series names, publishers, genres, or characters.
+### Decision Flow
+1. If First message is a series name → books in that series get <book-in-series>; any book outside that series is <unrelated-book>. <original-book> never appears in this case. <original-book> can only be added if the first message is a standalone book.
+2. First message is a standalone book → that book gets <original-book>; other books in its series get <book-in-series>; books from different topics get <unrelated-book>
+3. Every follow-up message → apply the same rules; the original tag assignments from rule 1 or 2 never change
 
 ### Tag Types
 - <original-book>: Only for the book the user asked about in the very first message of the session, and only if that first message was a standalone book (not a series). This designation is set once at session start and never re-assigned. If the session opened with a series name, <original-book> must never appear anywhere in the session.
 - <book-in-series>: Strictly for books that belong to the series the user originally searched for. Never apply this tag to books from a different series or unrelated standalone books, even if mentioned in the same response.
 - <unrelated-book>: Any book outside the original search topic — including any book the user asks about in a follow-up when the session started with a series name.
 
-### Decision Flow
-1. First message is a series name → books in that series get <book-in-series>; any book outside that series is <unrelated-book>
-2. First message is a standalone book → that book gets <original-book>; other books in its series get <book-in-series>; books from different topics get <unrelated-book>
-3. Every follow-up message → apply the same rules; the original tag assignments from rule 1 or 2 never change
-
 ### Tagging rules
 - Wrap EVERY single occurrence of a book title — in every sentence, paragraph, and inline mention. This includes the very first time the book title appears in the response (even if it is the opening sentence). No occurrence may be left untagged.
 - Same book = same tag throughout the entire response without exception. Never nest tags.
 - Auto-correct spelling errors in user queries. Provide comprehensive, informative responses.
+
+## FAVORITES
+Only add individual books with ISBN-13. Never ISBN-10, never series names.
+When listing favorites, show only titles — never ISBNs.
+
 
 ## FAVORITES (add_to_favorites, remove_from_favorites, list_favorites)
 - ONLY add individual books with ISBN-13 (13 digits). Never ISBN-10. Never series names.
@@ -81,18 +80,21 @@ NEVER tag author names, series names, publishers, genres, or characters.
 - When listing favorites: show ONLY titles — never display ISBNs to the user.
 
 ## WORD SEARCH (Project Gutenberg — public domain only, pre-1928)
-1. Call count_word_in_book directly with the book title and search term — resolution is handled internally.
-2. Use ONLY for counting a single word or phrase in isolation (e.g., "how many times does 'love' appear").
-3. For series queries, ask which specific book first. Auto-correct misspelled titles.
-4. Execute silently — don't announce steps. Modern books are unavailable — explain if asked.
+1. ONLY call count_word_in_book when the user explicitly asks to count or search for a specific word or phrase — never call proactively.
+2. Call count_word_in_book directly with the book title and search term — resolution is handled internally.
+3. Use ONLY for counting a single word or phrase in isolation (e.g., "how many times does 'love' appear").
+4. For series queries, ask which specific book first. Auto-correct misspelled titles.
+5. Execute silently — don't announce steps. Modern books are unavailable — explain if asked.
 
 ## SEMANTIC SEARCH (count_related_words_in_book)
+- ONLY call when the user explicitly asks to find or count words related to a concept — never call proactively.
 - Use for concept/category queries (e.g., "flower-related words", "colors"). Use count_word_in_book for single specific words instead.
 - List EACH word individually sorted highest first: "- **word** — X times". Optionally add total at end.
 - Same public-domain/series rules. Execute silently.
 
 ## BOOK STATISTICS (analyze_book_statistics)
-- Use for ANY question that requires reasoning about relationships between parts of the text: co-occurrence of multiple words in the same sentence/paragraph, sentence structure, word distributions, readability metrics, chapter analysis, or any other computable statistic that goes beyond counting a single word in isolation.
+- ONLY call when the user explicitly asks for a statistic, analysis, or pattern about a book's text — never call proactively for general questions about a book's content, themes, characters, or plot.
+- Use for questions that require computing relationships between parts of the text: co-occurrence of multiple words in the same sentence/paragraph, sentence structure, word distributions, readability metrics, chapter analysis, or any other computable statistic that goes beyond counting a single word in isolation.
 - MANDATORY for co-occurrence questions (e.g., "how many sentences contain both X and Y", "how often do X and Y appear together"): count_word_in_book counts words independently and CANNOT answer co-occurrence — always use analyze_book_statistics for these.
 - When formulating the question parameter for word frequency analysis, NEVER include "excluding stop words", "without common words", or any filtering language. Always request raw unfiltered word counts covering every word in the text.
 - Same public-domain/series rules. Execute silently. Present results conversationally — never mention "code interpreter".
@@ -105,6 +107,12 @@ NEVER tag author names, series names, publishers, genres, or characters.
 - NEVER add "excluding stop words", "without common words", or any filtering language to the question parameter. Word frequency must always reflect raw, unfiltered counts of every word in the text from first word to last word — no exceptions.
 - Execute silently. Provide brief text description after visualization.
 
+## OUTPUT FORMAT — CRITICAL
+- Write ALL responses in plain text paragraph format. No markdown headings (#, ##, ###), no horizontal rules (---), no tables (| ... |), no bullet-point-heavy lists.
+- You MAY use emojis freely.
+- You MAY use short bullet points sparingly for genuinely list-like data (e.g. award names), but never for sections that read naturally as prose.
+- Structure your response as flowing paragraphs. Use emojis as inline section indicators if desired (e.g. "📖 Overview — ..."), but never as markdown headings.
+
 ## CRITICAL RULES
 - NEVER refuse to call a tool because of book length or size. The backend handles large texts internally — you must ALWAYS call the appropriate tool regardless of how long the book is.
 - When a question requires text analysis, ALWAYS call the tool. Never answer with estimates, guesses, or refusals about size limits.`;
@@ -113,7 +121,7 @@ const FAVORITE_FUNCTIONS = [
   {
     name: "add_to_favorites",
     description:
-      "Add a book to the user's favorites list. Only use for individual books with valid ISBN-13, never for series names.",
+      "Add a book to the user's favorites list. Only use for individual books with valid ISBN-13, never for series names. ONLY call when the user explicitly asks to add a book to favorites. Never call proactively.",
     input_schema: {
       type: "object",
       properties: {
@@ -132,7 +140,8 @@ const FAVORITE_FUNCTIONS = [
   },
   {
     name: "remove_from_favorites",
-    description: "Remove a book from the user's favorites list by ISBN-13",
+    description:
+      "Remove a book from the user's favorites list by ISBN-13. ONLY call when the user explicitly asks to remove a book from favorites. Never call proactively.",
     input_schema: {
       type: "object",
       properties: {
@@ -147,7 +156,7 @@ const FAVORITE_FUNCTIONS = [
   {
     name: "list_favorites",
     description:
-      "List all books in the user's favorites list. Call this when user asks to see their favorites.",
+      "List all books in the user's favorites list. ONLY call when the user explicitly asks to see, view, or show their favorites list. Never call proactively.",
     input_schema: {
       type: "object",
       properties: {},
@@ -157,7 +166,7 @@ const FAVORITE_FUNCTIONS = [
   {
     name: "remove_all_favorites",
     description:
-      "Remove ALL books from the user's favorites list at once. Use when the user asks to clear, remove all, or empty their entire favorites list.",
+      "Remove ALL books from the user's favorites list at once. ONLY call when the user explicitly asks to clear, remove all, or empty their entire favorites list. Never call proactively.",
     input_schema: {
       type: "object",
       properties: {},
@@ -170,7 +179,7 @@ const WORD_SEARCH_FUNCTIONS = [
   {
     name: "count_word_in_book",
     description:
-      "Count how many times a word or phrase appears in a book's full text. Only works for books available in Project Gutenberg (public domain). Handles case-insensitivity and multi-word phrases.",
+      "Count how many times a word or phrase appears in a book's full text. Only works for books available in Project Gutenberg (public domain). Handles case-insensitivity and multi-word phrases. ONLY call when the user explicitly asks to count or search for a word or phrase. Never call proactively.",
     input_schema: {
       type: "object",
       properties: {
@@ -191,7 +200,7 @@ const WORD_SEARCH_FUNCTIONS = [
   {
     name: "count_related_words_in_book",
     description:
-      "Find and count ALL words semantically related to a concept or category in a book's full text. Uses embeddings to identify related words (synonyms, variations, specific examples) and counts each occurrence precisely. Only works for public domain books in Project Gutenberg.",
+      "Find and count ALL words semantically related to a concept or category in a book's full text. Uses embeddings to identify related words (synonyms, variations, specific examples) and counts each occurrence precisely. Only works for public domain books in Project Gutenberg. ONLY call when the user explicitly asks to find or count words related to a concept. Never call proactively.",
     input_schema: {
       type: "object",
       properties: {
@@ -215,7 +224,7 @@ const TEXT_ANALYSIS_FUNCTIONS = [
   {
     name: "analyze_book_statistics",
     description:
-      "Analyze any arbitrary statistic, pattern, or structural property of a book's full text using code execution. Use this for complex questions that go beyond simple word counting — such as sentence analysis, co-occurrence patterns, word distributions, chapter analysis, readability metrics, or ANY computable statistic about the text. Only works for public domain books available in Project Gutenberg.",
+      "Analyze any arbitrary statistic, pattern, or structural property of a book's full text using code execution. Use this for complex questions that go beyond simple word counting — such as sentence analysis, co-occurrence patterns, word distributions, chapter analysis, readability metrics, or ANY computable statistic about the text. Only works for public domain books available in Project Gutenberg. ONLY call when the user explicitly asks for a text analysis, statistic, or pattern about a book. Never call proactively.",
     input_schema: {
       type: "object",
       properties: {
@@ -239,7 +248,7 @@ const VISUALIZATION_FUNCTIONS = [
   {
     name: "generate_visualization",
     description:
-      "Generate an interactive visualization (chart, graph, diagram) of book text analysis results. Use this when the user explicitly asks to visualize, chart, graph, or plot data about a book's text. Creates a rich interactive chart displayed directly in the UI. Only works for public domain books available in Project Gutenberg.",
+      "Generate an interactive visualization (chart, graph, diagram) of book text analysis results. ONLY call when the user explicitly asks to visualize, chart, graph, or plot data about a book's text. Creates a rich interactive chart displayed directly in the UI. Only works for public domain books available in Project Gutenberg. Never call proactively.",
     input_schema: {
       type: "object",
       properties: {
