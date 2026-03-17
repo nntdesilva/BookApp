@@ -4,7 +4,7 @@ All notable changes to the BookApp project are documented in the [changelogs](./
 
 ## Quick Links
 
-- **[Latest Version: v0.11.8](./changelogs/v0.11.8.md)** - 2026-03-17
+- **[Latest Version: v0.11.9](./changelogs/v0.11.9.md)** - 2026-03-17
 - **[v0.11.6](./changelogs/v0.11.6.md)** - 2026-03-12
 - **[v0.11.5](./changelogs/v0.11.5.md)** - 2026-03-11
 - **[v0.11.4](./changelogs/v0.11.4.md)** - 2026-03-11
@@ -14,6 +14,10 @@ All notable changes to the BookApp project are documented in the [changelogs](./
 - **[Version History](./changelogs/README.md)** - Browse all versions
 
 ## Recent Updates |
+
+### [v0.11.9](./changelogs/v0.11.9.md) - 2026-03-17
+
+Refactor: Removed the separate `resolve_book_for_search` tool. Book resolution is now handled internally within `count_word_in_book` and `count_related_words_in_book`, so the AI calls these tools directly. Simplifies the tool flow and reduces Gutenberg API round-trips.
 
 ### [v0.11.8](./changelogs/v0.11.8.md) - 2026-03-17
 
