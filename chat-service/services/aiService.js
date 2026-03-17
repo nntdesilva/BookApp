@@ -81,7 +81,7 @@ NEVER tag author names, series names, publishers, genres, or characters.
 - When listing favorites: show ONLY titles — never display ISBNs to the user.
 
 ## WORD SEARCH (Project Gutenberg — public domain only, pre-1928)
-1. Call resolve_book_for_search to verify availability, then count_word_in_book with title and search term.
+1. Only when the user explicitly requests a word count: call resolve_book_for_search to verify availability, then count_word_in_book with title and search term.
 2. Use ONLY for counting a single word or phrase in isolation (e.g., "how many times does 'love' appear").
 3. For series queries, ask which specific book first. Auto-correct misspelled titles.
 4. Execute silently — don't announce steps. Modern books are unavailable — explain if asked.
@@ -171,7 +171,7 @@ const WORD_SEARCH_FUNCTIONS = [
   {
     name: "resolve_book_for_search",
     description:
-      "Check if a book is available for full-text search in Project Gutenberg. Use this to verify availability before counting words. Only works for public domain books (published before 1928).",
+      "Check if a book is available for full-text search in Project Gutenberg. ONLY call this as the first step when the user has explicitly asked to count words or phrases in a book's text. NEVER call this for general questions about a book (plot, author, themes, background, history, or any informational query). Only works for public domain books (published before 1928).",
     input_schema: {
       type: "object",
       properties: {
