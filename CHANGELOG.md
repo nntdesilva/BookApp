@@ -4,7 +4,7 @@ All notable changes to the BookApp project are documented in the [changelogs](./
 
 ## Quick Links
 
-- **[Latest Version: v0.11.7](./changelogs/v0.11.7.md)** - 2026-03-15
+- **[Latest Version: v0.11.8](./changelogs/v0.11.8.md)** - 2026-03-17
 - **[v0.11.6](./changelogs/v0.11.6.md)** - 2026-03-12
 - **[v0.11.5](./changelogs/v0.11.5.md)** - 2026-03-11
 - **[v0.11.4](./changelogs/v0.11.4.md)** - 2026-03-11
@@ -14,6 +14,10 @@ All notable changes to the BookApp project are documented in the [changelogs](./
 - **[Version History](./changelogs/README.md)** - Browse all versions
 
 ## Recent Updates |
+
+### [v0.11.8](./changelogs/v0.11.8.md) - 2026-03-17
+
+Bug Fix: Restricted AI word search tools (`resolve_book_for_search`, `count_word_in_book`) to explicit word-count requests only. The AI no longer invokes these tools for general book questions (plot, author, themes, etc.), reducing unnecessary Gutenberg API calls.
 
 ### [v0.11.7](./changelogs/v0.11.7.md) - 2026-03-15
 
