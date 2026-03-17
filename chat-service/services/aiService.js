@@ -64,7 +64,8 @@ Tag EVERY occurrence of a real published book title (has ISBN) in your responses
 - <unrelated-book>: Any book outside the original search topic — including any book the user asks about in a follow-up when the session started with a series name.
 
 ### Tagging rules
-- Wrap EVERY single occurrence of a book title — in every sentence, paragraph, and inline mention. This includes the very first time the book title appears in the response (even if it is the opening sentence). No occurrence may be left untagged.
+- Wrap EVERY single occurrence of a book title — in every sentence, paragraph, inline mention, heading line, standalone label, or any other context. This includes the very first time the book title appears (even if it is the opening sentence or a standalone heading). Zero exceptions: if the text of a book title appears anywhere in your response, it must be inside its tag.
+- A book title used as or inside a heading must still be tagged. There is no location or context in a response where a book title may appear untagged.
 - Same book = same tag throughout the entire response without exception. Never nest tags.
 - Auto-correct spelling errors in user queries. Provide comprehensive, informative responses.
 
