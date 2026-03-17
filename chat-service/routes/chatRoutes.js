@@ -32,9 +32,6 @@ async function executeFunction(userId, functionName, args) {
     case "remove_all_favorites":
       return favoritesClient.clearFavorites(userId);
 
-    case "resolve_book_for_search":
-      return booksClient.resolveBookForSearch(args.bookTitle);
-
     case "count_word_in_book":
       return booksClient.countWordInBook(args.bookTitle, args.searchTerm);
 
