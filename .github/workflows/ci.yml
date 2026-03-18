@@ -170,7 +170,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       NODE_ENV: test
-      CLAUDE_MODEL: claude-sonnet-4-6
+      CLAUDE_MODEL: claude-sonnet-4-5
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -190,7 +190,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       NODE_ENV: test
-      CLAUDE_MODEL: claude-sonnet-4-6
+      CLAUDE_MODEL: claude-sonnet-4-5
       CLAUDE_TEMPERATURE: "0.7"
       CLAUDE_MAX_TOKENS: "4096"
       MAX_HISTORY_MESSAGES: "15"
@@ -238,7 +238,7 @@ jobs:
       NODE_ENV: test
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
       OPENAI_EMBEDDINGS_API_KEY: ${{ secrets.OPENAI_EMBEDDINGS_API_KEY }}
-      CLAUDE_MODEL: claude-sonnet-4-6
+      CLAUDE_MODEL: claude-sonnet-4-5
       EMBEDDING_MODEL: text-embedding-3-large
       EMBEDDING_SIMILARITY_THRESHOLD: "0.48"
       BOOKS_SERVICE_URL: http://localhost:3003

@@ -4,7 +4,7 @@ All notable changes to the BookApp project are documented in the [changelogs](./
 
 ## Quick Links
 
-- **[Latest Version: v0.11.11](./changelogs/v0.11.11.md)** - 2026-03-18
+- **[Latest Version: v0.11.12](./changelogs/v0.11.12.md)** - 2026-03-18
 - **[v0.11.6](./changelogs/v0.11.6.md)** - 2026-03-12
 - **[v0.11.5](./changelogs/v0.11.5.md)** - 2026-03-11
 - **[v0.11.4](./changelogs/v0.11.4.md)** - 2026-03-11
@@ -14,6 +14,10 @@ All notable changes to the BookApp project are documented in the [changelogs](./
 - **[Version History](./changelogs/README.md)** - Browse all versions
 
 ## Recent Updates |
+
+### [v0.11.12](./changelogs/v0.11.12.md) - 2026-03-18
+
+Bug Fix: Changed the default Claude model from `claude-sonnet-4-6` to `claude-sonnet-4-5` across all services to fix runtime errors. Updated `.env.example`, `docker-compose.yml`, CI/CD workflows, and app config defaults in analysis-service and chat-service. Test mocks updated to match.
 
 ### [v0.11.11](./changelogs/v0.11.11.md) - 2026-03-18
 
