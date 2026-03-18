@@ -599,6 +599,7 @@ jobs:
                     "ANTHROPIC_API_KEY": "'"$ANTHROPIC_API_KEY"'",
                     "REDIS_URL": "'"$REDIS_URL"'",
                     "BOOKS_SERVICE_URL": "'"$BOOKS_SERVICE_URL"'",
+                    "CLAUDE_MODEL": "claude-sonnet-4-5",
                     "NODE_ENV": "production"
                   }
                 }
@@ -723,7 +724,7 @@ jobs:
                     "FAVORITES_SERVICE_URL": "'"$FAVORITES_SERVICE_URL"'",
                     "BOOKS_SERVICE_URL": "'"$BOOKS_SERVICE_URL"'",
                     "ANALYSIS_SERVICE_URL": "'"$ANALYSIS_SERVICE_URL"'",
-                    "CLAUDE_MODEL": "claude-sonnet-4-6",
+                    "CLAUDE_MODEL": "claude-sonnet-4-5",
                     "NODE_ENV": "production"
                   }
                 }

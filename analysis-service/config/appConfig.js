@@ -5,7 +5,7 @@ module.exports = {
   },
   claude: {
     apiKey: process.env.ANTHROPIC_API_KEY,
-    model: process.env.CLAUDE_MODEL || "claude-sonnet-4-6",
+    model: process.env.CLAUDE_MODEL || "claude-sonnet-4-5",
   },
   redis: {
     url: process.env.REDIS_URL || "redis://127.0.0.1:6379",

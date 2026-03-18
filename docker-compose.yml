@@ -71,7 +71,7 @@ services:
     environment:
       PORT: 3004
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
-      CLAUDE_MODEL: ${CLAUDE_MODEL:-claude-sonnet-4-6}
+      CLAUDE_MODEL: ${CLAUDE_MODEL:-claude-sonnet-4-5}
       REDIS_URL: redis://redis:6379
       BOOKS_SERVICE_URL: http://books-service:3003
     depends_on:
@@ -86,7 +86,7 @@ services:
     environment:
       PORT: 3005
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
-      CLAUDE_MODEL: ${CLAUDE_MODEL:-claude-sonnet-4-6}
+      CLAUDE_MODEL: ${CLAUDE_MODEL:-claude-sonnet-4-5}
       CLAUDE_TEMPERATURE: ${CLAUDE_TEMPERATURE:-0.7}
       CLAUDE_MAX_TOKENS: ${CLAUDE_MAX_TOKENS:-4096}
       MAX_HISTORY_MESSAGES: ${MAX_HISTORY_MESSAGES:-15}
