@@ -5,7 +5,9 @@
 
 const config = require("../config/appConfig");
 const embeddingService = require("./embeddingService");
-const logger = require("../config/logger").child({ component: "gutenbergService" });
+const logger = require("../config/logger").child({
+  component: "gutenbergService",
+});
 
 const bookTextCache = new Map();
 
@@ -16,27 +18,40 @@ const bookTextCache = new Map();
  */
 async function searchBook(bookTitle) {
   const t0 = Date.now();
-  const url = `${config.gutenberg.apiBaseUrl}/books?search=${encodeURIComponent(bookTitle)}`;
+  const url = `${config.gutenberg.apiBaseUrl}/books/?search=${encodeURIComponent(bookTitle)}`;
   logger.info({ event: "gutenberg_search", bookTitle, url });
   try {
     const response = await fetch(url);
 
     if (!response.ok) {
-      logger.error({ event: "gutenberg_api_error", httpStatus: response.status, bookTitle });
+      logger.error({
+        event: "gutenberg_api_error",
+        httpStatus: response.status,
+        bookTitle,
+      });
       throw new Error(`Gutenberg API error: ${response.status}`);
     }
 
     const data = await response.json();
 
     if (!data.results || data.results.length === 0) {
-      logger.info({ event: "gutenberg_search_no_results", bookTitle, durationMs: Date.now() - t0 });
+      logger.info({
+        event: "gutenberg_search_no_results",
+        bookTitle,
+        durationMs: Date.now() - t0,
+      });
       return {
         found: false,
         error: "Book not found in Project Gutenberg",
       };
     }
 
-    logger.info({ event: "gutenberg_search_results", bookTitle, resultCount: data.results.length, durationMs: Date.now() - t0 });
+    logger.info({
+      event: "gutenberg_search_results",
+      bookTitle,
+      resultCount: data.results.length,
+      durationMs: Date.now() - t0,
+    });
 
     // Find the best match - prefer exact title matches
     const normalizedSearch = bookTitle.toLowerCase().trim();
@@ -62,14 +77,23 @@ async function searchBook(bookTitle) {
     const textUrl = getTextUrl(bestMatch.formats);
 
     if (!textUrl) {
-      logger.warn({ event: "gutenberg_no_text_format", gutenbergId: bestMatch.id, title: bestMatch.title });
+      logger.warn({
+        event: "gutenberg_no_text_format",
+        gutenbergId: bestMatch.id,
+        title: bestMatch.title,
+      });
       return {
         found: false,
         error: "Book found but no text format available",
       };
     }
 
-    logger.info({ event: "gutenberg_best_match", gutenbergId: bestMatch.id, title: bestMatch.title, textUrl });
+    logger.info({
+      event: "gutenberg_best_match",
+      gutenbergId: bestMatch.id,
+      title: bestMatch.title,
+      textUrl,
+    });
     return {
       found: true,
       book: {
@@ -81,7 +105,12 @@ async function searchBook(bookTitle) {
       },
     };
   } catch (error) {
-    logger.error({ event: "gutenberg_search_error", bookTitle, durationMs: Date.now() - t0, err: error });
+    logger.error({
+      event: "gutenberg_search_error",
+      bookTitle,
+      durationMs: Date.now() - t0,
+      err: error,
+    });
     return {
       found: false,
       error: error.message || "Failed to search Project Gutenberg",
@@ -139,7 +168,11 @@ function getTextUrl(formats) {
 async function fetchBookText(textUrl) {
   if (bookTextCache.has(textUrl)) {
     const cached = bookTextCache.get(textUrl);
-    logger.info({ event: "book_text_cache_hit", textUrl, textLength: cached.text ? cached.text.length : 0 });
+    logger.info({
+      event: "book_text_cache_hit",
+      textUrl,
+      textLength: cached.text ? cached.text.length : 0,
+    });
     return cached;
   }
 
@@ -149,18 +182,32 @@ async function fetchBookText(textUrl) {
     const response = await fetch(textUrl);
 
     if (!response.ok) {
-      logger.error({ event: "book_text_fetch_failed", httpStatus: response.status, textUrl });
+      logger.error({
+        event: "book_text_fetch_failed",
+        httpStatus: response.status,
+        textUrl,
+      });
       throw new Error(`Failed to fetch book text: ${response.status}`);
     }
 
     const text = await response.text();
-    logger.info({ event: "book_text_fetched_cached", textUrl, textLength: text.length, durationMs: Date.now() - t0 });
+    logger.info({
+      event: "book_text_fetched_cached",
+      textUrl,
+      textLength: text.length,
+      durationMs: Date.now() - t0,
+    });
 
     const result = { success: true, text };
     bookTextCache.set(textUrl, result);
     return result;
   } catch (error) {
-    logger.error({ event: "book_text_fetch_error", textUrl, durationMs: Date.now() - t0, err: error });
+    logger.error({
+      event: "book_text_fetch_error",
+      textUrl,
+      durationMs: Date.now() - t0,
+      err: error,
+    });
     return {
       success: false,
       error: error.message || "Failed to fetch book text",
@@ -243,6 +290,11 @@ async function countWordInBook(bookTitle, searchTerm) {
 
   // Fetch the book text
   const textResult = await fetchBookText(resolution.textUrl);
+  logger.info({
+    event: "book_text_fetched",
+    textUrl: resolution.textUrl,
+    textLength: textResult.text ? textResult.text.length : 0,
+  });
 
   if (!textResult.success) {
     return {
@@ -351,12 +403,21 @@ async function countRelatedWordsInBook(bookTitle, concept) {
   }
 
   const uniqueWords = extractUniqueWords(bookResult.text);
-  logger.info({ event: "semantic_search_start", bookTitle, concept, uniqueWordCount: uniqueWords.length });
+  logger.info({
+    event: "semantic_search_start",
+    bookTitle,
+    concept,
+    uniqueWordCount: uniqueWords.length,
+  });
   const relatedWords = await embeddingService.findRelatedWords(
     concept,
     uniqueWords,
   );
-  logger.info({ event: "semantic_search_complete", concept, relatedWordsFound: relatedWords.length });
+  logger.info({
+    event: "semantic_search_complete",
+    concept,
+    relatedWordsFound: relatedWords.length,
+  });
 
   const wordCounts = relatedWords.map((entry) => {
     const countResult = countWordOccurrences(bookResult.text, entry.word);
@@ -371,10 +432,7 @@ async function countRelatedWordsInBook(bookTitle, concept) {
     .filter((w) => w.count > 0)
     .sort((a, b) => b.count - a.count);
 
-  const totalOccurrences = filteredCounts.reduce(
-    (sum, w) => sum + w.count,
-    0,
-  );
+  const totalOccurrences = filteredCounts.reduce((sum, w) => sum + w.count, 0);
 
   return {
     success: true,
