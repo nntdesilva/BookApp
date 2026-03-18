@@ -4,7 +4,7 @@ All notable changes to the BookApp project are documented in the [changelogs](./
 
 ## Quick Links
 
-- **[Latest Version: v0.11.10](./changelogs/v0.11.10.md)** - 2026-03-17
+- **[Latest Version: v0.11.11](./changelogs/v0.11.11.md)** - 2026-03-18
 - **[v0.11.6](./changelogs/v0.11.6.md)** - 2026-03-12
 - **[v0.11.5](./changelogs/v0.11.5.md)** - 2026-03-11
 - **[v0.11.4](./changelogs/v0.11.4.md)** - 2026-03-11
@@ -14,6 +14,10 @@ All notable changes to the BookApp project are documented in the [changelogs](./
 - **[Version History](./changelogs/README.md)** - Browse all versions
 
 ## Recent Updates |
+
+### [v0.11.11](./changelogs/v0.11.11.md) - 2026-03-18
+
+Bug Fix: Restructured the TAGGING section of the AI meta prompt in `aiService.js` for clarity and correct behavior. Replaced the previous decision flow with a 3-step model: (1) Lock session mode on the first message — SERIES-OPENED or BOOK-OPENED, never reclassified; (2) Tag every book title based on session mode — in SERIES-OPENED sessions `<original-book>` is forbidden; in BOOK-OPENED sessions the original book check takes absolute priority; (3) Wrap and enforce — every book title must be tagged in every context with no exceptions.
 
 ### [v0.11.10](./changelogs/v0.11.10.md) - 2026-03-17
 
