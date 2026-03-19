@@ -4,7 +4,8 @@ All notable changes to the BookApp project are documented in the [changelogs](./
 
 ## Quick Links
 
-- **[Latest Version: v0.11.12](./changelogs/v0.11.12.md)** - 2026-03-18
+- **[Latest Version: v0.11.13](./changelogs/v0.11.13.md)** - 2026-03-19
+- **[v0.11.12](./changelogs/v0.11.12.md)** - 2026-03-18
 - **[v0.11.6](./changelogs/v0.11.6.md)** - 2026-03-12
 - **[v0.11.5](./changelogs/v0.11.5.md)** - 2026-03-11
 - **[v0.11.4](./changelogs/v0.11.4.md)** - 2026-03-11
@@ -14,6 +15,10 @@ All notable changes to the BookApp project are documented in the [changelogs](./
 - **[Version History](./changelogs/README.md)** - Browse all versions
 
 ## Recent Updates |
+
+### [v0.11.13](./changelogs/v0.11.13.md) - 2026-03-19
+
+Bug Fix: CD workflow now sets App Runner **VPC egress** for analysis-service and chat-service using `VPC_CONNECTOR_ARN` (new required GitHub secret). `update-service` passes `EgressConfiguration` with `VpcConnectorArn` alongside private ingress, so those services can reach Redis and other backends inside the VPC.
 
 ### [v0.11.12](./changelogs/v0.11.12.md) - 2026-03-18
 
