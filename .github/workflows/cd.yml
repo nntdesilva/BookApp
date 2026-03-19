@@ -540,6 +540,7 @@ jobs:
           [ -z "$ANALYSIS_APPRUNNER_SERVICE_ARN" ]  && missing+=("ANALYSIS_APPRUNNER_SERVICE_ARN")
           [ -z "$ANTHROPIC_API_KEY" ]               && missing+=("ANTHROPIC_API_KEY")
           [ -z "$BOOKS_SERVICE_URL" ]               && missing+=("BOOKS_SERVICE_URL")
+          [ -z "$VPC_CONNECTOR_ARN" ]               && missing+=("VPC_CONNECTOR_ARN")
           if [ ${#missing[@]} -ne 0 ]; then
             echo "ERROR: Missing GitHub secrets:"
             for s in "${missing[@]}"; do echo "  - $s"; done
@@ -553,6 +554,7 @@ jobs:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           REDIS_URL: ${{ secrets.REDIS_URL }}
           BOOKS_SERVICE_URL: ${{ secrets.BOOKS_SERVICE_URL }}
+          VPC_CONNECTOR_ARN: ${{ secrets.VPC_CONNECTOR_ARN }}
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -586,6 +588,7 @@ jobs:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           REDIS_URL: ${{ secrets.REDIS_URL }}
           BOOKS_SERVICE_URL: ${{ secrets.BOOKS_SERVICE_URL }}
+          VPC_CONNECTOR_ARN: ${{ secrets.VPC_CONNECTOR_ARN }}
         run: |
           aws apprunner update-service \
             --service-arn "$APPRUNNER_SERVICE_ARN" \
@@ -607,7 +610,13 @@ jobs:
               "AutoDeploymentsEnabled": false,
               "AuthenticationConfiguration": { "AccessRoleArn": "'"$ECR_ACCESS_ROLE_ARN"'" }
             }' \
-            --network-configuration '{"IngressConfiguration": {"IsPubliclyAccessible": false}}' \
+            --network-configuration '{
+              "EgressConfiguration": {
+                "EgressType": "VPC",
+                "VpcConnectorArn": "'"$VPC_CONNECTOR_ARN"'"
+              },
+              "IngressConfiguration": {"IsPubliclyAccessible": false}
+            }' \
             --health-check-configuration '{
               "Protocol": "HTTP",
               "Path": "/health",
@@ -659,6 +668,7 @@ jobs:
           [ -z "$FAVORITES_SERVICE_URL" ]        && missing+=("FAVORITES_SERVICE_URL")
           [ -z "$BOOKS_SERVICE_URL" ]            && missing+=("BOOKS_SERVICE_URL")
           [ -z "$ANALYSIS_SERVICE_URL" ]         && missing+=("ANALYSIS_SERVICE_URL")
+          [ -z "$VPC_CONNECTOR_ARN" ]            && missing+=("VPC_CONNECTOR_ARN")
           if [ ${#missing[@]} -ne 0 ]; then
             echo "ERROR: Missing GitHub secrets:"
             for s in "${missing[@]}"; do echo "  - $s"; done
@@ -674,6 +684,7 @@ jobs:
           FAVORITES_SERVICE_URL: ${{ secrets.FAVORITES_SERVICE_URL }}
           BOOKS_SERVICE_URL: ${{ secrets.BOOKS_SERVICE_URL }}
           ANALYSIS_SERVICE_URL: ${{ secrets.ANALYSIS_SERVICE_URL }}
+          VPC_CONNECTOR_ARN: ${{ secrets.VPC_CONNECTOR_ARN }}
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -709,6 +720,7 @@ jobs:
           FAVORITES_SERVICE_URL: ${{ secrets.FAVORITES_SERVICE_URL }}
           BOOKS_SERVICE_URL: ${{ secrets.BOOKS_SERVICE_URL }}
           ANALYSIS_SERVICE_URL: ${{ secrets.ANALYSIS_SERVICE_URL }}
+          VPC_CONNECTOR_ARN: ${{ secrets.VPC_CONNECTOR_ARN }}
         run: |
           aws apprunner update-service \
             --service-arn "$APPRUNNER_SERVICE_ARN" \
@@ -732,7 +744,13 @@ jobs:
               "AutoDeploymentsEnabled": false,
               "AuthenticationConfiguration": { "AccessRoleArn": "'"$ECR_ACCESS_ROLE_ARN"'" }
             }' \
-            --network-configuration '{"IngressConfiguration": {"IsPubliclyAccessible": false}}' \
+            --network-configuration '{
+              "EgressConfiguration": {
+                "EgressType": "VPC",
+                "VpcConnectorArn": "'"$VPC_CONNECTOR_ARN"'"
+              },
+              "IngressConfiguration": {"IsPubliclyAccessible": false}
+            }' \
             --health-check-configuration '{
               "Protocol": "HTTP",
               "Path": "/health",
