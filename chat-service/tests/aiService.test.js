@@ -1,10 +1,13 @@
-jest.mock("@anthropic-ai/sdk", () => {
-  const mockCreate = jest.fn();
-  const MockConstructor = jest.fn().mockImplementation(() => ({
-    messages: { create: mockCreate },
+// Mock @langchain/anthropic so no real API calls are made.
+// bindTools() returns a bound model whose invoke() is the shared mockInvoke spy.
+jest.mock("@langchain/anthropic", () => {
+  const mockInvoke = jest.fn();
+  const mockBoundModel = { invoke: mockInvoke };
+  const MockChatAnthropic = jest.fn().mockImplementation(() => ({
+    bindTools: jest.fn().mockReturnValue(mockBoundModel),
   }));
-  MockConstructor.__mockCreate = mockCreate;
-  return MockConstructor;
+  MockChatAnthropic.__mockInvoke = mockInvoke;
+  return { ChatAnthropic: MockChatAnthropic };
 });
 
 jest.mock("../config/appConfig", () => ({
@@ -16,13 +19,14 @@ jest.mock("../config/appConfig", () => ({
   },
 }));
 
-const Anthropic = require("@anthropic-ai/sdk");
+const { ChatAnthropic } = require("@langchain/anthropic");
+const { HumanMessage, AIMessage, ToolMessage } = require("@langchain/core/messages");
 
-let mockCreate;
+let mockInvoke;
 
 beforeEach(() => {
-  mockCreate = Anthropic.__mockCreate;
-  mockCreate.mockReset();
+  mockInvoke = ChatAnthropic.__mockInvoke;
+  mockInvoke.mockReset();
   process.env.ANTHROPIC_API_KEY = "test-api-key";
 });
 
@@ -31,29 +35,34 @@ const {
   continueAfterFunctionExecution,
 } = require("../services/aiService");
 
-// --- generateChatResponse ---
+// ---------------------------------------------------------------------------
+// generateChatResponse
+// ---------------------------------------------------------------------------
 
 describe("generateChatResponse", () => {
   describe("happy path", () => {
     test("returns text response for non-tool messages", async () => {
-      mockCreate.mockResolvedValue({
+      mockInvoke.mockResolvedValue({
         content: [{ type: "text", text: "Hello! How can I help?" }],
+        tool_calls: [],
       });
 
       const result = await generateChatResponse("Hi", []);
       expect(result.success).toBe(true);
       expect(result.response).toBe("Hello! How can I help?");
+      // history = [HumanMessage, AIMessage]
       expect(result.conversationHistory).toHaveLength(2);
-      expect(result.conversationHistory[0].role).toBe("user");
-      expect(result.conversationHistory[1].role).toBe("assistant");
+      expect(result.conversationHistory[0]).toBeInstanceOf(HumanMessage);
+      expect(result.conversationHistory[1].tool_calls).toBeDefined();
     });
 
     test("concatenates multiple text blocks", async () => {
-      mockCreate.mockResolvedValue({
+      mockInvoke.mockResolvedValue({
         content: [
           { type: "text", text: "Part 1" },
           { type: "text", text: "Part 2" },
         ],
+        tool_calls: [],
       });
 
       const result = await generateChatResponse("Hello", []);
@@ -61,7 +70,7 @@ describe("generateChatResponse", () => {
     });
 
     test("returns tool calls when Claude wants to use tools", async () => {
-      mockCreate.mockResolvedValue({
+      mockInvoke.mockResolvedValue({
         content: [
           { type: "text", text: "Let me check..." },
           {
@@ -70,6 +79,9 @@ describe("generateChatResponse", () => {
             name: "add_to_favorites",
             input: { isbn13: "9780140449136", title: "Brothers K" },
           },
+        ],
+        tool_calls: [
+          { id: "tool_1", name: "add_to_favorites", args: { isbn13: "9780140449136", title: "Brothers K" } },
         ],
       });
 
@@ -85,32 +97,30 @@ describe("generateChatResponse", () => {
       expect(result.assistantMessage).toBeDefined();
     });
 
-    test("passes conversation history to API", async () => {
+    test("passes conversation history to the model", async () => {
       const history = [
-        { role: "user", content: "first" },
-        { role: "assistant", content: [{ type: "text", text: "response" }] },
+        new HumanMessage("first"),
+        new AIMessage({ content: [{ type: "text", text: "response" }], tool_calls: [] }),
       ];
 
-      mockCreate.mockResolvedValue({
+      mockInvoke.mockResolvedValue({
         content: [{ type: "text", text: "ok" }],
+        tool_calls: [],
       });
 
       await generateChatResponse("second", history);
 
-      expect(mockCreate).toHaveBeenCalledWith(
-        expect.objectContaining({
-          messages: [
-            ...history,
-            { role: "user", content: "second" },
-          ],
-        }),
-      );
+      // The model receives [systemMsg, ...history, newHumanMessage]
+      const callArgs = mockInvoke.mock.calls[0][0];
+      expect(callArgs.length).toBe(4); // system + 2 history + new human
+      expect(callArgs[callArgs.length - 1]).toBeInstanceOf(HumanMessage);
+      expect(callArgs[callArgs.length - 1].content).toBe("second");
     });
   });
 
   describe("edge cases", () => {
     test("handles empty content array from LLM (malformed output)", async () => {
-      mockCreate.mockResolvedValue({ content: [] });
+      mockInvoke.mockResolvedValue({ content: [], tool_calls: [] });
 
       const result = await generateChatResponse("test", []);
       expect(result.success).toBe(true);
@@ -118,8 +128,9 @@ describe("generateChatResponse", () => {
     });
 
     test("handles response with only non-text/non-tool blocks", async () => {
-      mockCreate.mockResolvedValue({
+      mockInvoke.mockResolvedValue({
         content: [{ type: "unknown_block", data: "something" }],
+        tool_calls: [],
       });
 
       const result = await generateChatResponse("test", []);
@@ -128,8 +139,9 @@ describe("generateChatResponse", () => {
     });
 
     test("uses empty array as default conversation history", async () => {
-      mockCreate.mockResolvedValue({
+      mockInvoke.mockResolvedValue({
         content: [{ type: "text", text: "hi" }],
+        tool_calls: [],
       });
 
       const result = await generateChatResponse("hello");
@@ -163,14 +175,14 @@ describe("generateChatResponse", () => {
     });
 
     test("returns error on API exception", async () => {
-      mockCreate.mockRejectedValue(new Error("Rate limit exceeded"));
+      mockInvoke.mockRejectedValue(new Error("Rate limit exceeded"));
 
       const result = await generateChatResponse("hello", []);
       expect(result.error).toBe("Rate limit exceeded");
     });
 
     test("handles token limit / overloaded error", async () => {
-      mockCreate.mockRejectedValue(
+      mockInvoke.mockRejectedValue(
         new Error(
           "This request would exceed the token limit. Please reduce your prompt.",
         ),
@@ -181,14 +193,14 @@ describe("generateChatResponse", () => {
     });
 
     test("handles network timeout error", async () => {
-      mockCreate.mockRejectedValue(new Error("Request timed out"));
+      mockInvoke.mockRejectedValue(new Error("Request timed out"));
 
       const result = await generateChatResponse("hello", []);
       expect(result.error).toBe("Request timed out");
     });
 
     test("falls back to generic message when error has no message", async () => {
-      mockCreate.mockRejectedValue({});
+      mockInvoke.mockRejectedValue({});
 
       const result = await generateChatResponse("hello", []);
       expect(result.error).toBe(
@@ -198,30 +210,31 @@ describe("generateChatResponse", () => {
   });
 });
 
-// --- continueAfterFunctionExecution ---
+// ---------------------------------------------------------------------------
+// continueAfterFunctionExecution
+// ---------------------------------------------------------------------------
 
 describe("continueAfterFunctionExecution", () => {
   describe("happy path", () => {
     test("returns final text response after tool execution", async () => {
-      mockCreate.mockResolvedValue({
+      mockInvoke.mockResolvedValue({
         content: [
           { type: "text", text: "Done! I added the book to your favorites." },
         ],
+        tool_calls: [],
+      });
+
+      const assistantMsg = new AIMessage({
+        content: [
+          { type: "text", text: "Let me add that." },
+          { type: "tool_use", id: "t1", name: "add_to_favorites", input: {} },
+        ],
+        tool_calls: [{ id: "t1", name: "add_to_favorites", args: {} }],
       });
 
       const result = await continueAfterFunctionExecution(
-        [{ role: "user", content: "add this book" }],
-        {
-          content: [
-            { type: "text", text: "Let me add that." },
-            {
-              type: "tool_use",
-              id: "t1",
-              name: "add_to_favorites",
-              input: {},
-            },
-          ],
-        },
+        [new HumanMessage("add this book")],
+        assistantMsg,
         [{ id: "t1", name: "add_to_favorites", result: { success: true } }],
       );
 
@@ -231,7 +244,7 @@ describe("continueAfterFunctionExecution", () => {
     });
 
     test("returns more tool calls when Claude chains tools", async () => {
-      mockCreate.mockResolvedValue({
+      mockInvoke.mockResolvedValue({
         content: [
           {
             type: "tool_use",
@@ -240,20 +253,21 @@ describe("continueAfterFunctionExecution", () => {
             input: { bookTitle: "Book", searchTerm: "love" },
           },
         ],
+        tool_calls: [
+          { id: "t2", name: "count_word_in_book", args: { bookTitle: "Book", searchTerm: "love" } },
+        ],
+      });
+
+      const assistantMsg = new AIMessage({
+        content: [
+          { type: "tool_use", id: "t1", name: "resolve_book_for_search", input: {} },
+        ],
+        tool_calls: [{ id: "t1", name: "resolve_book_for_search", args: {} }],
       });
 
       const result = await continueAfterFunctionExecution(
         [],
-        {
-          content: [
-            {
-              type: "tool_use",
-              id: "t1",
-              name: "resolve_book_for_search",
-              input: {},
-            },
-          ],
-        },
+        assistantMsg,
         [
           {
             id: "t1",
@@ -271,11 +285,16 @@ describe("continueAfterFunctionExecution", () => {
 
   describe("edge cases", () => {
     test("handles empty text response from LLM", async () => {
-      mockCreate.mockResolvedValue({ content: [] });
+      mockInvoke.mockResolvedValue({ content: [], tool_calls: [] });
+
+      const assistantMsg = new AIMessage({
+        content: [{ type: "tool_use", id: "t", name: "f", input: {} }],
+        tool_calls: [{ id: "t", name: "f", args: {} }],
+      });
 
       const result = await continueAfterFunctionExecution(
         [],
-        { content: [{ type: "tool_use", id: "t", name: "f", input: {} }] },
+        assistantMsg,
         [{ id: "t", name: "f", result: {} }],
       );
 
@@ -283,60 +302,56 @@ describe("continueAfterFunctionExecution", () => {
       expect(result.response).toBe("");
     });
 
-    test("correctly builds tool_result content blocks", async () => {
-      mockCreate.mockResolvedValue({
+    test("builds ToolMessage with correct tool_call_id", async () => {
+      mockInvoke.mockResolvedValue({
         content: [{ type: "text", text: "ok" }],
+        tool_calls: [],
+      });
+
+      const assistantMsg = new AIMessage({
+        content: [{ type: "tool_use", id: "t1", name: "f", input: {} }],
+        tool_calls: [{ id: "t1", name: "f", args: {} }],
       });
 
       await continueAfterFunctionExecution(
         [],
-        { content: [{ type: "tool_use", id: "t1", name: "f", input: {} }] },
+        assistantMsg,
         [{ id: "t1", name: "f", result: { data: "value" } }],
       );
 
-      const callArgs = mockCreate.mock.calls[0][0];
-      const lastUserMsg = callArgs.messages[callArgs.messages.length - 1];
-      expect(lastUserMsg.role).toBe("user");
-      expect(lastUserMsg.content[0].type).toBe("tool_result");
-      expect(lastUserMsg.content[0].tool_use_id).toBe("t1");
+      const callArgs = mockInvoke.mock.calls[0][0];
+      const toolMsg = callArgs.find((m) => m instanceof ToolMessage);
+      expect(toolMsg).toBeDefined();
+      expect(toolMsg.tool_call_id).toBe("t1");
     });
   });
 
   describe("error scenarios", () => {
     test("returns error on API failure", async () => {
-      mockCreate.mockRejectedValue(new Error("Server overloaded"));
+      mockInvoke.mockRejectedValue(new Error("Server overloaded"));
 
-      const result = await continueAfterFunctionExecution(
-        [],
-        { content: [] },
-        [],
-      );
+      const assistantMsg = new AIMessage({ content: [], tool_calls: [] });
+      const result = await continueAfterFunctionExecution([], assistantMsg, []);
 
       expect(result.error).toBe("Server overloaded");
     });
 
     test("handles token limit error during continuation", async () => {
-      mockCreate.mockRejectedValue(
+      mockInvoke.mockRejectedValue(
         new Error("prompt is too long: 200001 tokens > 200000 maximum"),
       );
 
-      const result = await continueAfterFunctionExecution(
-        [],
-        { content: [] },
-        [],
-      );
+      const assistantMsg = new AIMessage({ content: [], tool_calls: [] });
+      const result = await continueAfterFunctionExecution([], assistantMsg, []);
 
       expect(result.error).toMatch(/too long/);
     });
 
     test("falls back to generic error message", async () => {
-      mockCreate.mockRejectedValue({});
+      mockInvoke.mockRejectedValue({});
 
-      const result = await continueAfterFunctionExecution(
-        [],
-        { content: [] },
-        [],
-      );
+      const assistantMsg = new AIMessage({ content: [], tool_calls: [] });
+      const result = await continueAfterFunctionExecution([], assistantMsg, []);
 
       expect(result.error).toBe(
         "Failed to generate response. Please try again.",

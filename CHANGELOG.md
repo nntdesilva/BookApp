@@ -4,7 +4,7 @@ All notable changes to the BookApp project are documented in the [changelogs](./
 
 ## Quick Links
 
-- **[Latest Version: v0.11.13](./changelogs/v0.11.13.md)** - 2026-03-19
+- **[Latest Version: v0.11.14](./changelogs/v0.11.14.md)** - 2026-03-24
 - **[v0.11.12](./changelogs/v0.11.12.md)** - 2026-03-18
 - **[v0.11.6](./changelogs/v0.11.6.md)** - 2026-03-12
 - **[v0.11.5](./changelogs/v0.11.5.md)** - 2026-03-11
@@ -15,6 +15,10 @@ All notable changes to the BookApp project are documented in the [changelogs](./
 - **[Version History](./changelogs/README.md)** - Browse all versions
 
 ## Recent Updates |
+
+### [v0.11.14](./changelogs/v0.11.14.md) - 2026-03-24
+
+Refactor: **chat-service** now uses LangChain instead of the raw Anthropic SDK. `ChatAnthropic` with `bindTools()`, Zod-backed `tool()` definitions, `ChatPromptTemplate`, and LangChain messages (`HumanMessage`, `ToolMessage`) replace direct API calls; built-in `maxRetries` supersedes manual retry logic. Conversation history is persisted with `RedisChatMessageHistory` from `@langchain/community`. Redis config’s in-memory fallback implements list commands (`lrange`, `rpush`, `lpush`, `expire`, `ltrim`) for compatibility with the message store. Added `@langchain/anthropic`, `@langchain/community`, `@langchain/core`, and `zod`; tests updated.
 
 ### [v0.11.13](./changelogs/v0.11.13.md) - 2026-03-19
 

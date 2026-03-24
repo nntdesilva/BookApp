@@ -1,11 +1,23 @@
+// Mock the ioredis client so the module loads without a real Redis connection.
 jest.mock("../config/redis", () => ({
-  get: jest.fn(),
-  set: jest.fn(),
-  del: jest.fn(),
   on: jest.fn(),
 }));
 
-const redis = require("../config/redis");
+// Mock RedisChatMessageHistory so tests control getMessages / addMessages / clear
+// without touching a real Redis instance.
+const mockGetMessages = jest.fn();
+const mockAddMessages = jest.fn();
+const mockClear = jest.fn();
+
+jest.mock("@langchain/community/stores/message/ioredis", () => ({
+  RedisChatMessageHistory: jest.fn().mockImplementation(() => ({
+    getMessages: mockGetMessages,
+    addMessages: mockAddMessages,
+    clear: mockClear,
+  })),
+}));
+
+const { HumanMessage, AIMessage } = require("@langchain/core/messages");
 const {
   initializeConversation,
   getConversationHistory,
@@ -15,46 +27,30 @@ const {
   trimConversationHistory,
 } = require("../services/conversationService");
 
-const CONV_TTL = 86400;
-
-beforeEach(() => jest.clearAllMocks());
+beforeEach(() => {
+  mockGetMessages.mockReset();
+  mockAddMessages.mockReset();
+  mockClear.mockReset();
+});
 
 describe("initializeConversation", () => {
-  test("creates empty array when no existing history", async () => {
-    redis.get.mockResolvedValue(null);
-    redis.set.mockResolvedValue("OK");
-
-    await initializeConversation("user123");
-
-    expect(redis.get).toHaveBeenCalledWith("conv:user123");
-    expect(redis.set).toHaveBeenCalledWith(
-      "conv:user123",
-      JSON.stringify([]),
-      "EX",
-      CONV_TTL,
-    );
-  });
-
-  test("does not overwrite existing history", async () => {
-    redis.get.mockResolvedValue(JSON.stringify([{ role: "user", content: "hi" }]));
-
-    await initializeConversation("user123");
-
-    expect(redis.set).not.toHaveBeenCalled();
+  test("resolves without error (lazy-init handled by RedisChatMessageHistory)", async () => {
+    await expect(initializeConversation("user123")).resolves.toBeUndefined();
   });
 });
 
 describe("getConversationHistory", () => {
-  test("returns parsed history when present", async () => {
-    const msgs = [{ role: "user", content: "hello" }];
-    redis.get.mockResolvedValue(JSON.stringify(msgs));
+  test("returns messages from RedisChatMessageHistory", async () => {
+    const msgs = [new HumanMessage("hello"), new AIMessage("hi there")];
+    mockGetMessages.mockResolvedValue(msgs);
 
     const result = await getConversationHistory("user123");
     expect(result).toEqual(msgs);
+    expect(mockGetMessages).toHaveBeenCalledTimes(1);
   });
 
   test("returns empty array when no history exists", async () => {
-    redis.get.mockResolvedValue(null);
+    mockGetMessages.mockResolvedValue([]);
 
     const result = await getConversationHistory("user123");
     expect(result).toEqual([]);
@@ -62,43 +58,45 @@ describe("getConversationHistory", () => {
 });
 
 describe("updateConversationHistory", () => {
-  test("serializes and stores history in redis", async () => {
-    redis.set.mockResolvedValue("OK");
+  test("clears then adds the full message set", async () => {
+    mockClear.mockResolvedValue(undefined);
+    mockAddMessages.mockResolvedValue(undefined);
 
-    const newHistory = [
-      { role: "user", content: "a" },
-      { role: "assistant", content: "b" },
-    ];
+    const msgs = [new HumanMessage("a"), new AIMessage("b")];
+    await updateConversationHistory("user123", msgs);
 
-    await updateConversationHistory("user123", newHistory);
+    expect(mockClear).toHaveBeenCalledTimes(1);
+    expect(mockAddMessages).toHaveBeenCalledWith(msgs);
+  });
 
-    expect(redis.set).toHaveBeenCalledWith(
-      "conv:user123",
-      JSON.stringify(newHistory),
-      "EX",
-      CONV_TTL,
-    );
+  test("clears but skips addMessages when given an empty array", async () => {
+    mockClear.mockResolvedValue(undefined);
+
+    await updateConversationHistory("user123", []);
+
+    expect(mockClear).toHaveBeenCalledTimes(1);
+    expect(mockAddMessages).not.toHaveBeenCalled();
   });
 });
 
 describe("clearConversationHistory", () => {
-  test("deletes the redis key", async () => {
-    redis.del.mockResolvedValue(1);
+  test("delegates to history.clear()", async () => {
+    mockClear.mockResolvedValue(undefined);
 
     await clearConversationHistory("user123");
 
-    expect(redis.del).toHaveBeenCalledWith("conv:user123");
+    expect(mockClear).toHaveBeenCalledTimes(1);
   });
 });
 
 describe("getConversationStats", () => {
-  test("counts user and assistant messages", async () => {
-    const history = [
-      { role: "user", content: "a" },
-      { role: "assistant", content: "b" },
-      { role: "user", content: "c" },
+  test("counts human and ai messages correctly", async () => {
+    const msgs = [
+      new HumanMessage("a"),
+      new AIMessage("b"),
+      new HumanMessage("c"),
     ];
-    redis.get.mockResolvedValue(JSON.stringify(history));
+    mockGetMessages.mockResolvedValue(msgs);
 
     const stats = await getConversationStats("user123");
     expect(stats).toEqual({
@@ -110,7 +108,7 @@ describe("getConversationStats", () => {
   });
 
   test("handles empty conversation", async () => {
-    redis.get.mockResolvedValue(JSON.stringify([]));
+    mockGetMessages.mockResolvedValue([]);
 
     const stats = await getConversationStats("user123");
     expect(stats).toEqual({
@@ -120,68 +118,57 @@ describe("getConversationStats", () => {
       conversationStarted: false,
     });
   });
-
-  test("handles null redis value", async () => {
-    redis.get.mockResolvedValue(null);
-
-    const stats = await getConversationStats("user123");
-    expect(stats.totalMessages).toBe(0);
-    expect(stats.conversationStarted).toBe(false);
-  });
 });
 
 describe("trimConversationHistory", () => {
   test("trims when history exceeds max pairs", async () => {
-    const msgs = Array.from({ length: 30 }, (_, i) => ({
-      role: i % 2 === 0 ? "user" : "assistant",
-      content: `msg-${i}`,
-    }));
-    redis.get.mockResolvedValue(JSON.stringify(msgs));
-    redis.set.mockResolvedValue("OK");
+    const msgs = Array.from({ length: 30 }, (_, i) =>
+      i % 2 === 0 ? new HumanMessage(`msg-${i}`) : new AIMessage(`msg-${i}`),
+    );
+    mockGetMessages.mockResolvedValue(msgs);
+    mockClear.mockResolvedValue(undefined);
+    mockAddMessages.mockResolvedValue(undefined);
 
     await trimConversationHistory("user123", 5);
 
-    const setCall = redis.set.mock.calls[0];
-    const stored = JSON.parse(setCall[1]);
+    // Should keep the last 10 messages (5 pairs)
+    const stored = mockAddMessages.mock.calls[0][0];
     expect(stored).toHaveLength(10);
     expect(stored[0].content).toBe("msg-20");
   });
 
   test("does not trim when within limit", async () => {
-    const msgs = [
-      { role: "user", content: "a" },
-      { role: "assistant", content: "b" },
-    ];
-    redis.get.mockResolvedValue(JSON.stringify(msgs));
+    const msgs = [new HumanMessage("a"), new AIMessage("b")];
+    mockGetMessages.mockResolvedValue(msgs);
 
     await trimConversationHistory("user123", 5);
 
-    expect(redis.set).not.toHaveBeenCalled();
+    expect(mockClear).not.toHaveBeenCalled();
+    expect(mockAddMessages).not.toHaveBeenCalled();
   });
 
   test("uses default maxMessages of 10", async () => {
-    const msgs = Array.from({ length: 24 }, (_, i) => ({
-      role: i % 2 === 0 ? "user" : "assistant",
-      content: `m${i}`,
-    }));
-    redis.get.mockResolvedValue(JSON.stringify(msgs));
-    redis.set.mockResolvedValue("OK");
+    const msgs = Array.from({ length: 24 }, (_, i) =>
+      i % 2 === 0 ? new HumanMessage(`m${i}`) : new AIMessage(`m${i}`),
+    );
+    mockGetMessages.mockResolvedValue(msgs);
+    mockClear.mockResolvedValue(undefined);
+    mockAddMessages.mockResolvedValue(undefined);
 
     await trimConversationHistory("user123");
 
-    const stored = JSON.parse(redis.set.mock.calls[0][1]);
+    const stored = mockAddMessages.mock.calls[0][0];
     expect(stored).toHaveLength(20);
   });
 
   test("exactly at boundary does not trim", async () => {
-    const msgs = Array.from({ length: 10 }, (_, i) => ({
-      role: i % 2 === 0 ? "user" : "assistant",
-      content: `m${i}`,
-    }));
-    redis.get.mockResolvedValue(JSON.stringify(msgs));
+    const msgs = Array.from({ length: 10 }, (_, i) =>
+      i % 2 === 0 ? new HumanMessage(`m${i}`) : new AIMessage(`m${i}`),
+    );
+    mockGetMessages.mockResolvedValue(msgs);
 
     await trimConversationHistory("user123", 5);
 
-    expect(redis.set).not.toHaveBeenCalled();
+    expect(mockClear).not.toHaveBeenCalled();
   });
 });
