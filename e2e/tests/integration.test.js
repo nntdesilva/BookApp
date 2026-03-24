@@ -39,6 +39,11 @@ beforeAll(() => {
         const result = await gutenbergService.getBookFullText(body.bookTitle);
         return { ok: true, json: async () => result };
       }
+      if (pathname.endsWith("/api/books/count-word")) {
+        const body = JSON.parse(options?.body || "{}");
+        const result = await gutenbergService.countWordInBook(body.bookTitle, body.searchTerm);
+        return { ok: true, json: async () => result };
+      }
     }
     return _originalFetch(url, options);
   };
@@ -195,9 +200,10 @@ describe("AI Chat Service", () => {
   const conditionalTest = needsKey ? test.skip : test;
 
   conditionalTest("generates a text response for a general book question", async () => {
-    const result = await aiService.generateChatResponse(
+    const result = await aiService.runChatTurn(
       "Who wrote Pride and Prejudice? Reply in one sentence.",
       [],
+      "integration-test",
     );
 
     expect(result.success).toBe(true);
@@ -206,34 +212,35 @@ describe("AI Chat Service", () => {
     expect(result.conversationHistory).toHaveLength(2);
   });
 
-  conditionalTest("requests a tool call when asked about word count", async () => {
-    const result = await aiService.generateChatResponse(
-      'How many times does the word "whale" appear in Moby Dick?',
+  conditionalTest("uses the word count tool when asked about word count", async () => {
+    // The agent runs the full tool loop internally; we verify the outcome —
+    // a numeric count in the response — rather than intermediate tool-call state.
+    const result = await aiService.runChatTurn(
+      'How many times does the word "whale" appear in Moby Dick? Give me the exact count.',
       [],
+      "integration-test",
     );
 
     expect(result.success).toBe(true);
-    expect(result.requiresFunctionExecution).toBe(true);
-    expect(result.functionCalls.length).toBeGreaterThan(0);
-
-    const names = result.functionCalls.map((fc) => fc.name);
-    expect(
-      names.includes("resolve_book_for_search") || names.includes("count_word_in_book"),
-    ).toBe(true);
+    expect(result.response).toBeTruthy();
+    // Response must contain at least one number (the word count).
+    expect(result.response).toMatch(/\d+/);
   });
 
   conditionalTest("maintains conversation history across turns", async () => {
-    const turn1 = await aiService.generateChatResponse(
+    const turn1 = await aiService.runChatTurn(
       "Remember the number 42. Just say OK.",
       [],
+      "integration-test",
     );
 
     expect(turn1.success).toBe(true);
     expect(turn1.conversationHistory).toHaveLength(2);
 
-    const turn2 = await aiService.generateChatResponse(
+    const turn2 = await aiService.runChatTurn(
       "What number did I just ask you to remember?",
       turn1.conversationHistory,
+      "integration-test",
     );
 
     expect(turn2.success).toBe(true);
@@ -259,48 +266,16 @@ describe("End-to-End Word Count Verification", () => {
       expect(directResult.success).toBe(true);
       const actualCount = directResult.count;
 
-      let result = await aiService.generateChatResponse(
+      // The agent runs the full tool loop internally — no manual continuation needed.
+      const result = await aiService.runChatTurn(
         'How many times does the word "pride" appear in Pride and Prejudice? Give me the exact count.',
         [],
+        "integration-test",
       );
+
       expect(result.success).toBe(true);
-
-      let finalResponse = result.response;
-      let rounds = 0;
-
-      while (result.requiresFunctionExecution && rounds < 5) {
-        rounds++;
-        const functionResults = [];
-
-        for (const call of result.functionCalls) {
-          let fnResult;
-          if (call.name === "resolve_book_for_search") {
-            fnResult = await gutenbergService.resolveBookForSearch(call.arguments.bookTitle);
-          } else if (call.name === "count_word_in_book") {
-            fnResult = await gutenbergService.countWordInBook(
-              call.arguments.bookTitle,
-              call.arguments.searchTerm,
-            );
-          } else {
-            fnResult = { success: false, error: `Unsupported: ${call.name}` };
-          }
-
-          functionResults.push({ id: call.id, name: call.name, result: fnResult });
-        }
-
-        result = await aiService.continueAfterFunctionExecution(
-          result.conversationHistory,
-          result.assistantMessage,
-          functionResults,
-        );
-
-        if (!result.requiresFunctionExecution) {
-          finalResponse = result.response;
-        }
-      }
-
-      expect(finalResponse).toBeTruthy();
-      expect(finalResponse).toContain(String(actualCount));
+      expect(result.response).toBeTruthy();
+      expect(result.response).toContain(String(actualCount));
     },
   );
 });
