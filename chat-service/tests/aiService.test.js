@@ -1,12 +1,14 @@
-// Mock @langchain/anthropic so no real API calls are made.
-// bindTools() returns a bound model whose invoke() is the shared mockInvoke spy.
+// Mock @langchain/langgraph/prebuilt so no real agent or API calls are made.
+// createReactAgent returns a fake agent object whose invoke() is the shared
+// mockAgentInvoke spy. The spy is exposed via __mockAgentInvoke so each test
+// can configure exactly what the agent returns.
+const mockAgentInvoke = jest.fn();
+jest.mock("@langchain/langgraph/prebuilt", () => ({
+  createReactAgent: jest.fn().mockReturnValue({ invoke: mockAgentInvoke }),
+}));
+
 jest.mock("@langchain/anthropic", () => {
-  const mockInvoke = jest.fn();
-  const mockBoundModel = { invoke: mockInvoke };
-  const MockChatAnthropic = jest.fn().mockImplementation(() => ({
-    bindTools: jest.fn().mockReturnValue(mockBoundModel),
-  }));
-  MockChatAnthropic.__mockInvoke = mockInvoke;
+  const MockChatAnthropic = jest.fn().mockImplementation(() => ({}));
   return { ChatAnthropic: MockChatAnthropic };
 });
 
@@ -19,343 +21,349 @@ jest.mock("../config/appConfig", () => ({
   },
 }));
 
-const { ChatAnthropic } = require("@langchain/anthropic");
-const { HumanMessage, AIMessage, ToolMessage } = require("@langchain/core/messages");
+jest.mock("../clients/favoritesClient", () => ({
+  addFavorite: jest.fn(),
+  removeFavorite: jest.fn(),
+  listFavorites: jest.fn(),
+  clearFavorites: jest.fn(),
+}));
 
-let mockInvoke;
+jest.mock("../clients/booksClient", () => ({
+  countWordInBook: jest.fn(),
+  countRelatedWordsInBook: jest.fn(),
+}));
+
+jest.mock("../clients/analysisClient", () => ({
+  analyzeBookStatistics: jest.fn(),
+  generateVisualization: jest.fn(),
+}));
+
+const { HumanMessage, AIMessage } = require("@langchain/core/messages");
+const favoritesClient = require("../clients/favoritesClient");
+const booksClient = require("../clients/booksClient");
+const analysisClient = require("../clients/analysisClient");
+
+// Must require AFTER all mocks are set up.
+const { runChatTurn, createTools } = require("../services/aiService");
 
 beforeEach(() => {
-  mockInvoke = ChatAnthropic.__mockInvoke;
-  mockInvoke.mockReset();
-  process.env.ANTHROPIC_API_KEY = "test-api-key";
+  mockAgentInvoke.mockReset();
+  jest.clearAllMocks();
+  // Restore API key which error tests may blank out.
+  require("../config/appConfig").claude.apiKey = "test-api-key";
 });
 
-const {
-  generateChatResponse,
-  continueAfterFunctionExecution,
-} = require("../services/aiService");
-
 // ---------------------------------------------------------------------------
-// generateChatResponse
+// runChatTurn
 // ---------------------------------------------------------------------------
 
-describe("generateChatResponse", () => {
+describe("runChatTurn", () => {
   describe("happy path", () => {
-    test("returns text response for non-tool messages", async () => {
-      mockInvoke.mockResolvedValue({
-        content: [{ type: "text", text: "Hello! How can I help?" }],
-        tool_calls: [],
+    test("returns text response for a simple message", async () => {
+      mockAgentInvoke.mockResolvedValue({
+        messages: [
+          new HumanMessage("Hello"),
+          new AIMessage("Hi there! How can I help?"),
+        ],
       });
 
-      const result = await generateChatResponse("Hi", []);
+      const result = await runChatTurn("Hello", [], "user1");
+
       expect(result.success).toBe(true);
-      expect(result.response).toBe("Hello! How can I help?");
-      // history = [HumanMessage, AIMessage]
-      expect(result.conversationHistory).toHaveLength(2);
-      expect(result.conversationHistory[0]).toBeInstanceOf(HumanMessage);
-      expect(result.conversationHistory[1].tool_calls).toBeDefined();
+      expect(result.response).toBe("Hi there! How can I help?");
+      expect(result.visualizationHtml).toBeNull();
     });
 
-    test("concatenates multiple text blocks", async () => {
-      mockInvoke.mockResolvedValue({
-        content: [
-          { type: "text", text: "Part 1" },
-          { type: "text", text: "Part 2" },
-        ],
-        tool_calls: [],
-      });
-
-      const result = await generateChatResponse("Hello", []);
-      expect(result.response).toBe("Part 1\nPart 2");
-    });
-
-    test("returns tool calls when Claude wants to use tools", async () => {
-      mockInvoke.mockResolvedValue({
-        content: [
-          { type: "text", text: "Let me check..." },
-          {
-            type: "tool_use",
-            id: "tool_1",
-            name: "add_to_favorites",
-            input: { isbn13: "9780140449136", title: "Brothers K" },
-          },
-        ],
-        tool_calls: [
-          { id: "tool_1", name: "add_to_favorites", args: { isbn13: "9780140449136", title: "Brothers K" } },
-        ],
-      });
-
-      const result = await generateChatResponse("Add this book", []);
-      expect(result.success).toBe(true);
-      expect(result.requiresFunctionExecution).toBe(true);
-      expect(result.functionCalls).toHaveLength(1);
-      expect(result.functionCalls[0]).toEqual({
-        id: "tool_1",
-        name: "add_to_favorites",
-        arguments: { isbn13: "9780140449136", title: "Brothers K" },
-      });
-      expect(result.assistantMessage).toBeDefined();
-    });
-
-    test("passes conversation history to the model", async () => {
-      const history = [
-        new HumanMessage("first"),
-        new AIMessage({ content: [{ type: "text", text: "response" }], tool_calls: [] }),
+    test("appends HumanMessage and final AIMessage to conversation history", async () => {
+      const existingHistory = [
+        new HumanMessage("first question"),
+        new AIMessage("first answer"),
       ];
 
-      mockInvoke.mockResolvedValue({
-        content: [{ type: "text", text: "ok" }],
-        tool_calls: [],
+      mockAgentInvoke.mockResolvedValue({
+        messages: [
+          ...existingHistory,
+          new HumanMessage("second question"),
+          new AIMessage("second answer"),
+        ],
       });
 
-      await generateChatResponse("second", history);
+      const result = await runChatTurn("second question", existingHistory, "user1");
 
-      // The model receives [systemMsg, ...history, newHumanMessage]
-      const callArgs = mockInvoke.mock.calls[0][0];
-      expect(callArgs.length).toBe(4); // system + 2 history + new human
-      expect(callArgs[callArgs.length - 1]).toBeInstanceOf(HumanMessage);
-      expect(callArgs[callArgs.length - 1].content).toBe("second");
-    });
-  });
-
-  describe("edge cases", () => {
-    test("handles empty content array from LLM (malformed output)", async () => {
-      mockInvoke.mockResolvedValue({ content: [], tool_calls: [] });
-
-      const result = await generateChatResponse("test", []);
-      expect(result.success).toBe(true);
-      expect(result.response).toBe("");
+      expect(result.conversationHistory).toHaveLength(4);
+      expect(result.conversationHistory[2]).toBeInstanceOf(HumanMessage);
+      expect(result.conversationHistory[2].content).toBe("second question");
+      expect(result.conversationHistory[3]).toBeInstanceOf(AIMessage);
+      expect(result.conversationHistory[3].content).toBe("second answer");
     });
 
-    test("handles response with only non-text/non-tool blocks", async () => {
-      mockInvoke.mockResolvedValue({
-        content: [{ type: "unknown_block", data: "something" }],
-        tool_calls: [],
+    test("passes full history + new message to the agent", async () => {
+      const history = [
+        new HumanMessage("prev"),
+        new AIMessage("prev response"),
+      ];
+
+      mockAgentInvoke.mockResolvedValue({
+        messages: [...history, new HumanMessage("new"), new AIMessage("ok")],
       });
 
-      const result = await generateChatResponse("test", []);
-      expect(result.success).toBe(true);
-      expect(result.response).toBe("");
+      await runChatTurn("new", history, "user42");
+
+      const [{ messages }] = mockAgentInvoke.mock.calls[0];
+      expect(messages).toHaveLength(3); // 2 history + 1 new HumanMessage
+      expect(messages[messages.length - 1]).toBeInstanceOf(HumanMessage);
+      expect(messages[messages.length - 1].content).toBe("new");
+    });
+
+    test("handles content that is an array of text blocks", async () => {
+      mockAgentInvoke.mockResolvedValue({
+        messages: [
+          new HumanMessage("hi"),
+          new AIMessage({ content: [{ type: "text", text: "Part A" }, { type: "text", text: "Part B" }] }),
+        ],
+      });
+
+      const result = await runChatTurn("hi", [], "user1");
+
+      expect(result.response).toBe("Part A\nPart B");
     });
 
     test("uses empty array as default conversation history", async () => {
-      mockInvoke.mockResolvedValue({
-        content: [{ type: "text", text: "hi" }],
-        tool_calls: [],
+      mockAgentInvoke.mockResolvedValue({
+        messages: [new HumanMessage("hello"), new AIMessage("hey")],
       });
 
-      const result = await generateChatResponse("hello");
+      const result = await runChatTurn("hello", undefined, "user1");
       expect(result.success).toBe(true);
+    });
+
+    test("returns null visualizationHtml when no visualization tool was called", async () => {
+      mockAgentInvoke.mockResolvedValue({
+        messages: [new HumanMessage("tell me about Hamlet"), new AIMessage("Hamlet is a play...")],
+      });
+
+      const result = await runChatTurn("tell me about Hamlet", [], "user1");
+      expect(result.visualizationHtml).toBeNull();
     });
   });
 
   describe("error scenarios", () => {
     test("returns error for null message", async () => {
-      const result = await generateChatResponse(null, []);
+      const result = await runChatTurn(null, [], "user1");
       expect(result.error).toMatch(/Invalid message format/);
     });
 
     test("returns error for empty string message", async () => {
-      const result = await generateChatResponse("", []);
+      const result = await runChatTurn("", [], "user1");
       expect(result.error).toMatch(/Invalid message format/);
     });
 
     test("returns error for non-string message", async () => {
-      const result = await generateChatResponse(42, []);
+      const result = await runChatTurn(42, [], "user1");
       expect(result.error).toMatch(/Invalid message format/);
     });
 
-    test("returns error when ANTHROPIC_API_KEY is missing", async () => {
-      const config = require("../config/appConfig");
-      const origKey = config.claude.apiKey;
-      config.claude.apiKey = null;
-      const result = await generateChatResponse("hello", []);
+    test("returns error when API key is missing", async () => {
+      require("../config/appConfig").claude.apiKey = null;
+
+      const result = await runChatTurn("hello", [], "user1");
       expect(result.error).toMatch(/API key is not configured/);
-      config.claude.apiKey = origKey;
     });
 
-    test("returns error on API exception", async () => {
-      mockInvoke.mockRejectedValue(new Error("Rate limit exceeded"));
+    test("returns error when agent throws", async () => {
+      mockAgentInvoke.mockRejectedValue(new Error("Rate limit exceeded"));
 
-      const result = await generateChatResponse("hello", []);
+      const result = await runChatTurn("hello", [], "user1");
       expect(result.error).toBe("Rate limit exceeded");
     });
 
-    test("handles token limit / overloaded error", async () => {
-      mockInvoke.mockRejectedValue(
-        new Error(
-          "This request would exceed the token limit. Please reduce your prompt.",
-        ),
-      );
+    test("falls back to generic message when error has no .message", async () => {
+      mockAgentInvoke.mockRejectedValue({});
 
-      const result = await generateChatResponse("very long message", []);
-      expect(result.error).toMatch(/token limit/i);
+      const result = await runChatTurn("hello", [], "user1");
+      expect(result.error).toBe("Failed to generate response. Please try again.");
     });
 
-    test("handles network timeout error", async () => {
-      mockInvoke.mockRejectedValue(new Error("Request timed out"));
+    test("handles network timeout error from agent", async () => {
+      mockAgentInvoke.mockRejectedValue(new Error("Request timed out"));
 
-      const result = await generateChatResponse("hello", []);
+      const result = await runChatTurn("hello", [], "user1");
       expect(result.error).toBe("Request timed out");
-    });
-
-    test("falls back to generic message when error has no message", async () => {
-      mockInvoke.mockRejectedValue({});
-
-      const result = await generateChatResponse("hello", []);
-      expect(result.error).toBe(
-        "Failed to generate response. Please try again.",
-      );
     });
   });
 });
 
 // ---------------------------------------------------------------------------
-// continueAfterFunctionExecution
+// createTools — tool implementations
 // ---------------------------------------------------------------------------
 
-describe("continueAfterFunctionExecution", () => {
-  describe("happy path", () => {
-    test("returns final text response after tool execution", async () => {
-      mockInvoke.mockResolvedValue({
-        content: [
-          { type: "text", text: "Done! I added the book to your favorites." },
-        ],
-        tool_calls: [],
-      });
+describe("createTools", () => {
+  const USER_ID = "test-user-99";
 
-      const assistantMsg = new AIMessage({
-        content: [
-          { type: "text", text: "Let me add that." },
-          { type: "tool_use", id: "t1", name: "add_to_favorites", input: {} },
-        ],
-        tool_calls: [{ id: "t1", name: "add_to_favorites", args: {} }],
-      });
+  describe("add_to_favorites", () => {
+    test("calls favoritesClient.addFavorite with correct args", async () => {
+      favoritesClient.addFavorite.mockResolvedValue({ success: true });
+      const { tools } = createTools(USER_ID);
+      const t = tools.find((t) => t.name === "add_to_favorites");
 
-      const result = await continueAfterFunctionExecution(
-        [new HumanMessage("add this book")],
-        assistantMsg,
-        [{ id: "t1", name: "add_to_favorites", result: { success: true } }],
+      await t.invoke({ isbn13: "9780140449136", title: "The Brothers Karamazov" });
+
+      expect(favoritesClient.addFavorite).toHaveBeenCalledWith(
+        USER_ID,
+        "9780140449136",
+        "The Brothers Karamazov",
       );
-
-      expect(result.success).toBe(true);
-      expect(result.response).toContain("added the book");
-      expect(result.conversationHistory.length).toBeGreaterThan(0);
     });
 
-    test("returns more tool calls when Claude chains tools", async () => {
-      mockInvoke.mockResolvedValue({
-        content: [
-          {
-            type: "tool_use",
-            id: "t2",
-            name: "count_word_in_book",
-            input: { bookTitle: "Book", searchTerm: "love" },
-          },
-        ],
-        tool_calls: [
-          { id: "t2", name: "count_word_in_book", args: { bookTitle: "Book", searchTerm: "love" } },
-        ],
-      });
+    test("returns JSON-stringified client response", async () => {
+      favoritesClient.addFavorite.mockResolvedValue({ success: true, message: "Added" });
+      const { tools } = createTools(USER_ID);
+      const t = tools.find((t) => t.name === "add_to_favorites");
 
-      const assistantMsg = new AIMessage({
-        content: [
-          { type: "tool_use", id: "t1", name: "resolve_book_for_search", input: {} },
-        ],
-        tool_calls: [{ id: "t1", name: "resolve_book_for_search", args: {} }],
-      });
-
-      const result = await continueAfterFunctionExecution(
-        [],
-        assistantMsg,
-        [
-          {
-            id: "t1",
-            name: "resolve_book_for_search",
-            result: { available: true },
-          },
-        ],
-      );
-
-      expect(result.requiresFunctionExecution).toBe(true);
-      expect(result.functionCalls).toHaveLength(1);
-      expect(result.functionCalls[0].name).toBe("count_word_in_book");
+      const output = await t.invoke({ isbn13: "9780000000000", title: "Book" });
+      expect(JSON.parse(output)).toEqual({ success: true, message: "Added" });
     });
   });
 
-  describe("edge cases", () => {
-    test("handles empty text response from LLM", async () => {
-      mockInvoke.mockResolvedValue({ content: [], tool_calls: [] });
+  describe("remove_from_favorites", () => {
+    test("calls favoritesClient.removeFavorite with correct args", async () => {
+      favoritesClient.removeFavorite.mockResolvedValue({ success: true });
+      const { tools } = createTools(USER_ID);
+      const t = tools.find((t) => t.name === "remove_from_favorites");
 
-      const assistantMsg = new AIMessage({
-        content: [{ type: "tool_use", id: "t", name: "f", input: {} }],
-        tool_calls: [{ id: "t", name: "f", args: {} }],
-      });
+      await t.invoke({ isbn13: "9780140449136" });
 
-      const result = await continueAfterFunctionExecution(
-        [],
-        assistantMsg,
-        [{ id: "t", name: "f", result: {} }],
-      );
-
-      expect(result.success).toBe(true);
-      expect(result.response).toBe("");
-    });
-
-    test("builds ToolMessage with correct tool_call_id", async () => {
-      mockInvoke.mockResolvedValue({
-        content: [{ type: "text", text: "ok" }],
-        tool_calls: [],
-      });
-
-      const assistantMsg = new AIMessage({
-        content: [{ type: "tool_use", id: "t1", name: "f", input: {} }],
-        tool_calls: [{ id: "t1", name: "f", args: {} }],
-      });
-
-      await continueAfterFunctionExecution(
-        [],
-        assistantMsg,
-        [{ id: "t1", name: "f", result: { data: "value" } }],
-      );
-
-      const callArgs = mockInvoke.mock.calls[0][0];
-      const toolMsg = callArgs.find((m) => m instanceof ToolMessage);
-      expect(toolMsg).toBeDefined();
-      expect(toolMsg.tool_call_id).toBe("t1");
+      expect(favoritesClient.removeFavorite).toHaveBeenCalledWith(USER_ID, "9780140449136");
     });
   });
 
-  describe("error scenarios", () => {
-    test("returns error on API failure", async () => {
-      mockInvoke.mockRejectedValue(new Error("Server overloaded"));
+  describe("list_favorites", () => {
+    test("calls favoritesClient.listFavorites for correct user", async () => {
+      favoritesClient.listFavorites.mockResolvedValue({ favorites: [] });
+      const { tools } = createTools(USER_ID);
+      const t = tools.find((t) => t.name === "list_favorites");
 
-      const assistantMsg = new AIMessage({ content: [], tool_calls: [] });
-      const result = await continueAfterFunctionExecution([], assistantMsg, []);
+      await t.invoke({});
 
-      expect(result.error).toBe("Server overloaded");
+      expect(favoritesClient.listFavorites).toHaveBeenCalledWith(USER_ID);
+    });
+  });
+
+  describe("remove_all_favorites", () => {
+    test("calls favoritesClient.clearFavorites for correct user", async () => {
+      favoritesClient.clearFavorites.mockResolvedValue({ success: true });
+      const { tools } = createTools(USER_ID);
+      const t = tools.find((t) => t.name === "remove_all_favorites");
+
+      await t.invoke({});
+
+      expect(favoritesClient.clearFavorites).toHaveBeenCalledWith(USER_ID);
+    });
+  });
+
+  describe("count_word_in_book", () => {
+    test("calls booksClient.countWordInBook with correct args", async () => {
+      booksClient.countWordInBook.mockResolvedValue({ count: 42 });
+      const { tools } = createTools(USER_ID);
+      const t = tools.find((t) => t.name === "count_word_in_book");
+
+      await t.invoke({ bookTitle: "Hamlet", searchTerm: "love" });
+
+      expect(booksClient.countWordInBook).toHaveBeenCalledWith("Hamlet", "love");
+    });
+  });
+
+  describe("count_related_words_in_book", () => {
+    test("calls booksClient.countRelatedWordsInBook with correct args", async () => {
+      booksClient.countRelatedWordsInBook.mockResolvedValue({ words: [] });
+      const { tools } = createTools(USER_ID);
+      const t = tools.find((t) => t.name === "count_related_words_in_book");
+
+      await t.invoke({ bookTitle: "Hamlet", concept: "emotions" });
+
+      expect(booksClient.countRelatedWordsInBook).toHaveBeenCalledWith("Hamlet", "emotions");
+    });
+  });
+
+  describe("analyze_book_statistics", () => {
+    test("calls analysisClient.analyzeBookStatistics with correct args", async () => {
+      analysisClient.analyzeBookStatistics.mockResolvedValue({ result: "done" });
+      const { tools } = createTools(USER_ID);
+      const t = tools.find((t) => t.name === "analyze_book_statistics");
+
+      await t.invoke({ bookTitle: "Hamlet", question: "average sentence length?" });
+
+      expect(analysisClient.analyzeBookStatistics).toHaveBeenCalledWith(
+        "Hamlet",
+        "average sentence length?",
+      );
+    });
+  });
+
+  describe("generate_visualization", () => {
+    test("captures HTML and returns a stripped-down summary to the LLM", async () => {
+      analysisClient.generateVisualization.mockResolvedValue({
+        success: true,
+        html: "<div>big chart html</div>",
+        bookTitle: "Hamlet",
+        authors: ["Shakespeare"],
+      });
+
+      const { tools, getVisualizationHtml } = createTools(USER_ID);
+      const t = tools.find((t) => t.name === "generate_visualization");
+
+      const output = await t.invoke({
+        bookTitle: "Hamlet",
+        question: "top 10 words",
+        chartType: "bar chart",
+      });
+
+      // HTML is captured on the side
+      expect(getVisualizationHtml()).toBe("<div>big chart html</div>");
+
+      // The LLM receives a small summary, NOT the full HTML
+      const parsed = JSON.parse(output);
+      expect(parsed.html).toBeUndefined();
+      expect(parsed.message).toMatch(/visualization has been generated/i);
+      expect(parsed.bookTitle).toBe("Hamlet");
     });
 
-    test("handles token limit error during continuation", async () => {
-      mockInvoke.mockRejectedValue(
-        new Error("prompt is too long: 200001 tokens > 200000 maximum"),
-      );
+    test("returns raw client response when visualization fails", async () => {
+      analysisClient.generateVisualization.mockResolvedValue({
+        success: false,
+        error: "Book not found",
+      });
 
-      const assistantMsg = new AIMessage({ content: [], tool_calls: [] });
-      const result = await continueAfterFunctionExecution([], assistantMsg, []);
+      const { tools, getVisualizationHtml } = createTools(USER_ID);
+      const t = tools.find((t) => t.name === "generate_visualization");
 
-      expect(result.error).toMatch(/too long/);
+      const output = await t.invoke({
+        bookTitle: "Unknown Book",
+        question: "word freq",
+        chartType: "bar chart",
+      });
+
+      expect(getVisualizationHtml()).toBeNull();
+      expect(JSON.parse(output)).toEqual({ success: false, error: "Book not found" });
     });
 
-    test("falls back to generic error message", async () => {
-      mockInvoke.mockRejectedValue({});
+    test("each createTools call has its own independent HTML capture", async () => {
+      analysisClient.generateVisualization.mockResolvedValue({
+        success: true,
+        html: "<div>chart</div>",
+        bookTitle: "Hamlet",
+        authors: [],
+      });
 
-      const assistantMsg = new AIMessage({ content: [], tool_calls: [] });
-      const result = await continueAfterFunctionExecution([], assistantMsg, []);
+      const { tools: tools1, getVisualizationHtml: getHtml1 } = createTools("userA");
+      const { getVisualizationHtml: getHtml2 } = createTools("userB");
 
-      expect(result.error).toBe(
-        "Failed to generate response. Please try again.",
-      );
+      const vizTool = tools1.find((t) => t.name === "generate_visualization");
+      await vizTool.invoke({ bookTitle: "Hamlet", question: "q", chartType: "bar chart" });
+
+      // userA's closure captured HTML; userB's closure is untouched
+      expect(getHtml1()).toBe("<div>chart</div>");
+      expect(getHtml2()).toBeNull();
     });
   });
 });

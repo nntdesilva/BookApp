@@ -11,9 +11,6 @@ jest.mock("ioredis", () => {
 jest.mock("../services/aiService");
 jest.mock("../services/tagService");
 jest.mock("../services/conversationService");
-jest.mock("../clients/favoritesClient");
-jest.mock("../clients/booksClient");
-jest.mock("../clients/analysisClient");
 jest.mock("../config/appConfig", () => ({
   claude: { apiKey: "test-key" },
   conversation: { maxHistoryMessages: 15 },
@@ -32,9 +29,6 @@ const chatRoutes = require("../routes/chatRoutes");
 const aiService = require("../services/aiService");
 const tagService = require("../services/tagService");
 const conversationService = require("../services/conversationService");
-const favoritesClient = require("../clients/favoritesClient");
-const booksClient = require("../clients/booksClient");
-const analysisClient = require("../clients/analysisClient");
 
 const app = express();
 app.use(express.json());
@@ -42,7 +36,9 @@ app.use("/api", chatRoutes);
 
 beforeEach(() => jest.clearAllMocks());
 
-// --- POST /api/chat ---
+// ---------------------------------------------------------------------------
+// POST /api/chat
+// ---------------------------------------------------------------------------
 
 describe("POST /api/chat", () => {
   test("returns 401 when no x-user-id header", async () => {
@@ -96,13 +92,11 @@ describe("POST /api/chat", () => {
   test("returns HTML response for simple text reply", async () => {
     conversationService.initializeConversation.mockResolvedValue(undefined);
     conversationService.getConversationHistory.mockResolvedValue([]);
-    aiService.generateChatResponse.mockResolvedValue({
+    aiService.runChatTurn.mockResolvedValue({
       success: true,
       response: "Hello there",
-      conversationHistory: [
-        { role: "user", content: "hi" },
-        { role: "assistant", content: "Hello there" },
-      ],
+      conversationHistory: [],
+      visualizationHtml: null,
     });
     tagService.convertTagsToHTML.mockReturnValue("<p>Hello there</p>");
     conversationService.updateConversationHistory.mockResolvedValue(undefined);
@@ -120,10 +114,32 @@ describe("POST /api/chat", () => {
     expect(conversationService.trimConversationHistory).toHaveBeenCalled();
   });
 
+  test("calls runChatTurn with message, history, and userId", async () => {
+    const history = [{ role: "user", content: "prev" }];
+    conversationService.initializeConversation.mockResolvedValue(undefined);
+    conversationService.getConversationHistory.mockResolvedValue(history);
+    aiService.runChatTurn.mockResolvedValue({
+      success: true,
+      response: "ok",
+      conversationHistory: [],
+      visualizationHtml: null,
+    });
+    tagService.convertTagsToHTML.mockReturnValue("<p>ok</p>");
+    conversationService.updateConversationHistory.mockResolvedValue(undefined);
+    conversationService.trimConversationHistory.mockResolvedValue(undefined);
+
+    await request(app)
+      .post("/api/chat")
+      .set("x-user-id", "user123")
+      .send({ message: "hello" });
+
+    expect(aiService.runChatTurn).toHaveBeenCalledWith("hello", history, "user123");
+  });
+
   test("returns 500 when AI service returns error", async () => {
     conversationService.initializeConversation.mockResolvedValue(undefined);
     conversationService.getConversationHistory.mockResolvedValue([]);
-    aiService.generateChatResponse.mockResolvedValue({
+    aiService.runChatTurn.mockResolvedValue({
       error: "Rate limit exceeded",
     });
 
@@ -136,75 +152,18 @@ describe("POST /api/chat", () => {
     expect(res.body.error).toBe("Rate limit exceeded");
   });
 
-  test("executes tool calls via HTTP clients and returns final response", async () => {
+  test("includes visualization HTML in response when present", async () => {
     conversationService.initializeConversation.mockResolvedValue(undefined);
     conversationService.getConversationHistory.mockResolvedValue([]);
-    conversationService.updateConversationHistory.mockResolvedValue(undefined);
-    conversationService.trimConversationHistory.mockResolvedValue(undefined);
-
-    aiService.generateChatResponse.mockResolvedValue({
-      success: true,
-      requiresFunctionExecution: true,
-      functionCalls: [{ id: "t1", name: "list_favorites", arguments: {} }],
-      assistantMessage: { content: [{ type: "tool_use", id: "t1", name: "list_favorites", input: {} }] },
-      conversationHistory: [{ role: "user", content: "list my favorites" }],
-    });
-
-    favoritesClient.listFavorites.mockResolvedValue({
-      success: true,
-      favorites: [],
-      count: 0,
-    });
-
-    aiService.continueAfterFunctionExecution.mockResolvedValue({
-      success: true,
-      response: "Your favorites list is empty.",
-      conversationHistory: [],
-    });
-
-    tagService.convertTagsToHTML.mockReturnValue("<p>Your favorites list is empty.</p>");
-
-    const res = await request(app)
-      .post("/api/chat")
-      .set("x-user-id", "user123")
-      .send({ message: "list my favorites" });
-
-    expect(res.status).toBe(200);
-    expect(favoritesClient.listFavorites).toHaveBeenCalledWith("user123");
-    expect(aiService.continueAfterFunctionExecution).toHaveBeenCalled();
-    expect(res.body.response).toBe("<p>Your favorites list is empty.</p>");
-  });
-
-  test("includes visualization HTML when generate_visualization is called", async () => {
-    conversationService.initializeConversation.mockResolvedValue(undefined);
-    conversationService.getConversationHistory.mockResolvedValue([]);
-    conversationService.updateConversationHistory.mockResolvedValue(undefined);
-    conversationService.trimConversationHistory.mockResolvedValue(undefined);
-
-    aiService.generateChatResponse.mockResolvedValue({
-      success: true,
-      requiresFunctionExecution: true,
-      functionCalls: [
-        { id: "t1", name: "generate_visualization", arguments: { bookTitle: "Book", question: "q", chartType: "bar" } },
-      ],
-      assistantMessage: { content: [] },
-      conversationHistory: [],
-    });
-
-    analysisClient.generateVisualization.mockResolvedValue({
-      success: true,
-      html: "<html>chart</html>",
-      bookTitle: "Book",
-      authors: ["Author"],
-    });
-
-    aiService.continueAfterFunctionExecution.mockResolvedValue({
+    aiService.runChatTurn.mockResolvedValue({
       success: true,
       response: "Here is the chart.",
       conversationHistory: [],
+      visualizationHtml: "<html>chart</html>",
     });
-
     tagService.convertTagsToHTML.mockReturnValue("<p>Here is the chart.</p>");
+    conversationService.updateConversationHistory.mockResolvedValue(undefined);
+    conversationService.trimConversationHistory.mockResolvedValue(undefined);
 
     const res = await request(app)
       .post("/api/chat")
@@ -216,49 +175,26 @@ describe("POST /api/chat", () => {
     expect(res.body.success).toBe(true);
   });
 
-  test("handles multiple rounds of tool calls", async () => {
+  test("does not include visualization key when visualizationHtml is null", async () => {
     conversationService.initializeConversation.mockResolvedValue(undefined);
     conversationService.getConversationHistory.mockResolvedValue([]);
+    aiService.runChatTurn.mockResolvedValue({
+      success: true,
+      response: "No chart here.",
+      conversationHistory: [],
+      visualizationHtml: null,
+    });
+    tagService.convertTagsToHTML.mockReturnValue("<p>No chart here.</p>");
     conversationService.updateConversationHistory.mockResolvedValue(undefined);
     conversationService.trimConversationHistory.mockResolvedValue(undefined);
-
-    aiService.generateChatResponse.mockResolvedValue({
-      success: true,
-      requiresFunctionExecution: true,
-      functionCalls: [{ id: "t1", name: "resolve_book_for_search", arguments: { bookTitle: "Pride" } }],
-      assistantMessage: { content: [] },
-      conversationHistory: [],
-    });
-
-    booksClient.resolveBookForSearch.mockResolvedValue({
-      available: true,
-      title: "Pride and Prejudice",
-    });
-
-    aiService.continueAfterFunctionExecution
-      .mockResolvedValueOnce({
-        success: true,
-        requiresFunctionExecution: true,
-        functionCalls: [{ id: "t2", name: "count_word_in_book", arguments: { bookTitle: "Pride", searchTerm: "love" } }],
-        assistantMessage: { content: [] },
-        conversationHistory: [],
-      })
-      .mockResolvedValueOnce({
-        success: true,
-        response: "The word love appears 45 times.",
-        conversationHistory: [],
-      });
-
-    booksClient.countWordInBook.mockResolvedValue({ success: true, count: 45 });
-    tagService.convertTagsToHTML.mockReturnValue("<p>45 times</p>");
 
     const res = await request(app)
       .post("/api/chat")
       .set("x-user-id", "user123")
-      .send({ message: "count love in Pride" });
+      .send({ message: "hello" });
 
     expect(res.status).toBe(200);
-    expect(aiService.continueAfterFunctionExecution).toHaveBeenCalledTimes(2);
+    expect(res.body.visualization).toBeUndefined();
   });
 
   test("returns 500 on unexpected exception", async () => {
@@ -272,36 +208,11 @@ describe("POST /api/chat", () => {
     expect(res.status).toBe(500);
     expect(res.body.error).toMatch(/error/i);
   });
-
-  test("returns 500 when continuation returns error", async () => {
-    conversationService.initializeConversation.mockResolvedValue(undefined);
-    conversationService.getConversationHistory.mockResolvedValue([]);
-
-    aiService.generateChatResponse.mockResolvedValue({
-      success: true,
-      requiresFunctionExecution: true,
-      functionCalls: [{ id: "t1", name: "list_favorites", arguments: {} }],
-      assistantMessage: { content: [] },
-      conversationHistory: [],
-    });
-
-    favoritesClient.listFavorites.mockResolvedValue({ success: true, favorites: [] });
-
-    aiService.continueAfterFunctionExecution.mockResolvedValue({
-      error: "Token limit reached",
-    });
-
-    const res = await request(app)
-      .post("/api/chat")
-      .set("x-user-id", "user123")
-      .send({ message: "list" });
-
-    expect(res.status).toBe(500);
-    expect(res.body.error).toBe("Token limit reached");
-  });
 });
 
-// --- POST /api/clear ---
+// ---------------------------------------------------------------------------
+// POST /api/clear
+// ---------------------------------------------------------------------------
 
 describe("POST /api/clear", () => {
   test("returns 401 without x-user-id", async () => {
@@ -332,7 +243,9 @@ describe("POST /api/clear", () => {
   });
 });
 
-// --- GET /api/stats ---
+// ---------------------------------------------------------------------------
+// GET /api/stats
+// ---------------------------------------------------------------------------
 
 describe("GET /api/stats", () => {
   test("returns 401 without x-user-id", async () => {

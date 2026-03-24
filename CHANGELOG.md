@@ -4,7 +4,7 @@ All notable changes to the BookApp project are documented in the [changelogs](./
 
 ## Quick Links
 
-- **[Latest Version: v0.11.14](./changelogs/v0.11.14.md)** - 2026-03-24
+- **[Latest Version: v0.11.15](./changelogs/v0.11.15.md)** - 2026-03-24
 - **[v0.11.12](./changelogs/v0.11.12.md)** - 2026-03-18
 - **[v0.11.6](./changelogs/v0.11.6.md)** - 2026-03-12
 - **[v0.11.5](./changelogs/v0.11.5.md)** - 2026-03-11
@@ -15,6 +15,10 @@ All notable changes to the BookApp project are documented in the [changelogs](./
 - **[Version History](./changelogs/README.md)** - Browse all versions
 
 ## Recent Updates |
+
+### [v0.11.15](./changelogs/v0.11.15.md) - 2026-03-24
+
+Refactor: **chat-service** completes the LangChain migration by replacing the manual agentic while-loop with `createReactAgent` from `@langchain/langgraph/prebuilt`. `runChatTurn` is now the single public API — it creates per-request tools (with `userId` and visualization side-effect capture bound in closures), runs the full agent loop internally, and returns the final response. `chatRoutes.js` loses its `while` loop, `executeFunction` switch, and all direct client imports. History is compacted to `[HumanMessage, AIMessage(final)]` per turn. Tests rewritten for the new surface.
 
 ### [v0.11.14](./changelogs/v0.11.14.md) - 2026-03-24
 

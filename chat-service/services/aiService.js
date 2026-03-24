@@ -1,8 +1,11 @@
 const { ChatAnthropic } = require("@langchain/anthropic");
-const { ChatPromptTemplate } = require("@langchain/core/prompts");
-const { HumanMessage, ToolMessage } = require("@langchain/core/messages");
+const { SystemMessage, HumanMessage, AIMessage } = require("@langchain/core/messages");
 const { tool } = require("@langchain/core/tools");
 const { z } = require("zod");
+const { createReactAgent } = require("@langchain/langgraph/prebuilt");
+const favoritesClient = require("../clients/favoritesClient");
+const booksClient = require("../clients/booksClient");
+const analysisClient = require("../clients/analysisClient");
 const config = require("../config/appConfig");
 const logger = require("../config/logger").child({ component: "aiService" });
 
@@ -92,156 +95,227 @@ When listing favorites, show only titles — never ISBNs.
 - NEVER refuse to call a tool because of book length or size. The backend handles large texts internally — you must ALWAYS call the appropriate tool regardless of how long the book is.
 - When a question requires text analysis, ALWAYS call the tool. Never answer with estimates, guesses, or refusals about size limits.`;
 
-// Wrapped as a ChatPromptTemplate — no variable interpolation for now, but this
-// makes it easy to add per-request variables (e.g. username, date) in the future.
-const BOOK_ASSISTANT_PROMPT = ChatPromptTemplate.fromMessages([
-  ["system", META_PROMPT_SYSTEM],
-]);
-
 // ---------------------------------------------------------------------------
-// Tool definitions — Zod schemas replace Anthropic's raw input_schema format.
-// Note: the tool functions below are placeholders; actual execution is
-// dispatched by chatRoutes.js via executeFunction() until the agent loop
-// is migrated in a later step.
-// ---------------------------------------------------------------------------
-
-const ALL_TOOLS = [
-  tool(async (_input) => ({}), {
-    name: "add_to_favorites",
-    description:
-      "Add a book to the user's favorites list. Only use for individual books with valid ISBN-13, never for series names. ONLY call when the user explicitly asks to add a book to favorites. Never call proactively.",
-    schema: z.object({
-      isbn13: z
-        .string()
-        .describe(
-          "The ISBN-13 of the book (exactly 13 digits, no hyphens). Must be a valid ISBN-13.",
-        ),
-      title: z.string().describe("The full title of the book"),
-    }),
-  }),
-
-  tool(async (_input) => ({}), {
-    name: "remove_from_favorites",
-    description:
-      "Remove a book from the user's favorites list by ISBN-13. ONLY call when the user explicitly asks to remove a book from favorites. Never call proactively.",
-    schema: z.object({
-      isbn13: z
-        .string()
-        .describe("The ISBN-13 of the book to remove (exactly 13 digits)"),
-    }),
-  }),
-
-  tool(async () => ({}), {
-    name: "list_favorites",
-    description:
-      "List all books in the user's favorites list. ONLY call when the user explicitly asks to see, view, or show their favorites list. Never call proactively.",
-    schema: z.object({}),
-  }),
-
-  tool(async () => ({}), {
-    name: "remove_all_favorites",
-    description:
-      "Remove ALL books from the user's favorites list at once. ONLY call when the user explicitly asks to clear, remove all, or empty their entire favorites list. Never call proactively.",
-    schema: z.object({}),
-  }),
-
-  tool(async (_input) => ({}), {
-    name: "count_word_in_book",
-    description:
-      "Count how many times a word or phrase appears in a book's full text. Only works for books available in Project Gutenberg (public domain). Handles case-insensitivity and multi-word phrases. ONLY call when the user explicitly asks to count or search for a word or phrase. Never call proactively.",
-    schema: z.object({
-      bookTitle: z
-        .string()
-        .describe(
-          "The title of the book to search in (use the corrected/proper title)",
-        ),
-      searchTerm: z
-        .string()
-        .describe(
-          "The word or phrase to count occurrences of (can be multiple words, case-insensitive)",
-        ),
-    }),
-  }),
-
-  tool(async (_input) => ({}), {
-    name: "count_related_words_in_book",
-    description:
-      "Find and count ALL words semantically related to a concept or category in a book's full text. Uses embeddings to identify related words (synonyms, variations, specific examples) and counts each occurrence precisely. Only works for public domain books in Project Gutenberg. ONLY call when the user explicitly asks to find or count words related to a concept. Never call proactively.",
-    schema: z.object({
-      bookTitle: z
-        .string()
-        .describe(
-          "The title of the book to search in (use the corrected/proper title)",
-        ),
-      concept: z
-        .string()
-        .describe(
-          "The concept or category to find related words for (e.g., 'flowers', 'war', 'emotions', 'colors')",
-        ),
-    }),
-  }),
-
-  tool(async (_input) => ({}), {
-    name: "analyze_book_statistics",
-    description:
-      "Analyze any arbitrary statistic, pattern, or structural property of a book's full text using code execution. Use this for complex questions that go beyond simple word counting — such as sentence analysis, co-occurrence patterns, word distributions, chapter analysis, readability metrics, or ANY computable statistic about the text. Only works for public domain books available in Project Gutenberg. ONLY call when the user explicitly asks for a text analysis, statistic, or pattern about a book. Never call proactively.",
-    schema: z.object({
-      bookTitle: z
-        .string()
-        .describe(
-          "The title of the book to analyze (use the corrected/proper title)",
-        ),
-      question: z
-        .string()
-        .describe(
-          "The user's question or statistic they want to know about the book's text. Be specific and include all relevant details from the user's request.",
-        ),
-    }),
-  }),
-
-  tool(async (_input) => ({}), {
-    name: "generate_visualization",
-    description:
-      "Generate an interactive visualization (chart, graph, diagram) of book text analysis results. ONLY call when the user explicitly asks to visualize, chart, graph, or plot data about a book's text. Creates a rich interactive chart displayed directly in the UI. Only works for public domain books available in Project Gutenberg. Never call proactively.",
-    schema: z.object({
-      bookTitle: z
-        .string()
-        .describe(
-          "The title of the book to analyze and visualize (use the corrected/proper title)",
-        ),
-      question: z
-        .string()
-        .describe(
-          "What data to compute and visualize from the book's text (e.g., 'top 10 most common words', 'sentence length distribution'). IMPORTANT: Never add 'excluding stop words' or any filtering language — always request raw unfiltered counts.",
-        ),
-      chartType: z
-        .string()
-        .describe(
-          "The type of chart to create: 'bar chart', 'pie chart', 'line chart', 'scatter plot', 'heatmap', 'sankey diagram', 'histogram', 'treemap', or any other valid chart type. If user doesn't specify, choose the most appropriate type for the data.",
-        ),
-    }),
-  }),
-];
-
-// ---------------------------------------------------------------------------
-// Model — lazy singleton with tools pre-bound.
+// Model singleton — raw model; createReactAgent binds tools internally.
 // maxRetries replaces the hand-rolled callWithRetry / exponential-backoff loop.
 // ---------------------------------------------------------------------------
 
-let _modelWithTools = null;
+let _model = null;
 
-function getModelWithTools() {
-  if (!_modelWithTools) {
-    const model = new ChatAnthropic({
+function getModel() {
+  if (!_model) {
+    _model = new ChatAnthropic({
       apiKey: config.claude.apiKey,
       model: config.claude.model,
       temperature: config.claude.temperature,
       maxTokens: config.claude.maxTokens,
       maxRetries: 3,
     });
-    _modelWithTools = model.bindTools(ALL_TOOLS);
   }
-  return _modelWithTools;
+  return _model;
+}
+
+// ---------------------------------------------------------------------------
+// Tool factory — creates per-request tools with userId bound.
+// The generate_visualization tool captures HTML as a side-effect so it can
+// be returned to the caller without sending the full markup back to the LLM.
+// ---------------------------------------------------------------------------
+
+function createTools(userId) {
+  let capturedVisualizationHtml = null;
+
+  const tools = [
+    tool(
+      async ({ isbn13, title }) => {
+        logger.info({ event: "tool_add_favorite", userId, isbn13, title });
+        const result = await favoritesClient.addFavorite(userId, isbn13, title);
+        return JSON.stringify(result);
+      },
+      {
+        name: "add_to_favorites",
+        description:
+          "Add a book to the user's favorites list. Only use for individual books with valid ISBN-13, never for series names. ONLY call when the user explicitly asks to add a book to favorites. Never call proactively.",
+        schema: z.object({
+          isbn13: z
+            .string()
+            .describe(
+              "The ISBN-13 of the book (exactly 13 digits, no hyphens). Must be a valid ISBN-13.",
+            ),
+          title: z.string().describe("The full title of the book"),
+        }),
+      },
+    ),
+
+    tool(
+      async ({ isbn13 }) => {
+        logger.info({ event: "tool_remove_favorite", userId, isbn13 });
+        const result = await favoritesClient.removeFavorite(userId, isbn13);
+        return JSON.stringify(result);
+      },
+      {
+        name: "remove_from_favorites",
+        description:
+          "Remove a book from the user's favorites list by ISBN-13. ONLY call when the user explicitly asks to remove a book from favorites. Never call proactively.",
+        schema: z.object({
+          isbn13: z
+            .string()
+            .describe("The ISBN-13 of the book to remove (exactly 13 digits)"),
+        }),
+      },
+    ),
+
+    tool(
+      async () => {
+        logger.info({ event: "tool_list_favorites", userId });
+        const result = await favoritesClient.listFavorites(userId);
+        return JSON.stringify(result);
+      },
+      {
+        name: "list_favorites",
+        description:
+          "List all books in the user's favorites list. ONLY call when the user explicitly asks to see, view, or show their favorites list. Never call proactively.",
+        schema: z.object({}),
+      },
+    ),
+
+    tool(
+      async () => {
+        logger.info({ event: "tool_remove_all_favorites", userId });
+        const result = await favoritesClient.clearFavorites(userId);
+        return JSON.stringify(result);
+      },
+      {
+        name: "remove_all_favorites",
+        description:
+          "Remove ALL books from the user's favorites list at once. ONLY call when the user explicitly asks to clear, remove all, or empty their entire favorites list. Never call proactively.",
+        schema: z.object({}),
+      },
+    ),
+
+    tool(
+      async ({ bookTitle, searchTerm }) => {
+        logger.info({ event: "tool_count_word", userId, bookTitle, searchTerm });
+        const result = await booksClient.countWordInBook(bookTitle, searchTerm);
+        return JSON.stringify(result);
+      },
+      {
+        name: "count_word_in_book",
+        description:
+          "Count how many times a word or phrase appears in a book's full text. Only works for books available in Project Gutenberg (public domain). Handles case-insensitivity and multi-word phrases. ONLY call when the user explicitly asks to count or search for a word or phrase. Never call proactively.",
+        schema: z.object({
+          bookTitle: z
+            .string()
+            .describe(
+              "The title of the book to search in (use the corrected/proper title)",
+            ),
+          searchTerm: z
+            .string()
+            .describe(
+              "The word or phrase to count occurrences of (can be multiple words, case-insensitive)",
+            ),
+        }),
+      },
+    ),
+
+    tool(
+      async ({ bookTitle, concept }) => {
+        logger.info({ event: "tool_count_related", userId, bookTitle, concept });
+        const result = await booksClient.countRelatedWordsInBook(bookTitle, concept);
+        return JSON.stringify(result);
+      },
+      {
+        name: "count_related_words_in_book",
+        description:
+          "Find and count ALL words semantically related to a concept or category in a book's full text. Uses embeddings to identify related words (synonyms, variations, specific examples) and counts each occurrence precisely. Only works for public domain books in Project Gutenberg. ONLY call when the user explicitly asks to find or count words related to a concept. Never call proactively.",
+        schema: z.object({
+          bookTitle: z
+            .string()
+            .describe(
+              "The title of the book to search in (use the corrected/proper title)",
+            ),
+          concept: z
+            .string()
+            .describe(
+              "The concept or category to find related words for (e.g., 'flowers', 'war', 'emotions', 'colors')",
+            ),
+        }),
+      },
+    ),
+
+    tool(
+      async ({ bookTitle, question }) => {
+        logger.info({ event: "tool_analyze_statistics", userId, bookTitle });
+        const result = await analysisClient.analyzeBookStatistics(bookTitle, question);
+        return JSON.stringify(result);
+      },
+      {
+        name: "analyze_book_statistics",
+        description:
+          "Analyze any arbitrary statistic, pattern, or structural property of a book's full text using code execution. Use this for complex questions that go beyond simple word counting — such as sentence analysis, co-occurrence patterns, word distributions, chapter analysis, readability metrics, or ANY computable statistic about the text. Only works for public domain books available in Project Gutenberg. ONLY call when the user explicitly asks for a text analysis, statistic, or pattern about a book. Never call proactively.",
+        schema: z.object({
+          bookTitle: z
+            .string()
+            .describe(
+              "The title of the book to analyze (use the corrected/proper title)",
+            ),
+          question: z
+            .string()
+            .describe(
+              "The user's question or statistic they want to know about the book's text. Be specific and include all relevant details from the user's request.",
+            ),
+        }),
+      },
+    ),
+
+    tool(
+      async ({ bookTitle, question, chartType }) => {
+        logger.info({ event: "tool_generate_visualization", userId, bookTitle, chartType });
+        const result = await analysisClient.generateVisualization(bookTitle, question, chartType);
+        if (result.success && result.html) {
+          capturedVisualizationHtml = result.html;
+          logger.info({
+            event: "visualization_captured",
+            userId,
+            bookTitle,
+            htmlLength: result.html.length,
+          });
+          // Return a stripped-down summary — not the full HTML — so the LLM
+          // doesn't receive megabytes of markup in its context window.
+          return JSON.stringify({
+            success: true,
+            bookTitle: result.bookTitle,
+            authors: result.authors,
+            message: "Interactive visualization has been generated and will be displayed to the user.",
+          });
+        }
+        return JSON.stringify(result);
+      },
+      {
+        name: "generate_visualization",
+        description:
+          "Generate an interactive visualization (chart, graph, diagram) of book text analysis results. ONLY call when the user explicitly asks to visualize, chart, graph, or plot data about a book's text. Creates a rich interactive chart displayed directly in the UI. Only works for public domain books available in Project Gutenberg. Never call proactively.",
+        schema: z.object({
+          bookTitle: z
+            .string()
+            .describe(
+              "The title of the book to analyze and visualize (use the corrected/proper title)",
+            ),
+          question: z
+            .string()
+            .describe(
+              "What data to compute and visualize from the book's text (e.g., 'top 10 most common words', 'sentence length distribution'). IMPORTANT: Never add 'excluding stop words' or any filtering language — always request raw unfiltered counts.",
+            ),
+          chartType: z
+            .string()
+            .describe(
+              "The type of chart to create: 'bar chart', 'pie chart', 'line chart', 'scatter plot', 'heatmap', 'sankey diagram', 'histogram', 'treemap', or any other valid chart type. If user doesn't specify, choose the most appropriate type for the data.",
+            ),
+        }),
+      },
+    ),
+  ];
+
+  return { tools, getVisualizationHtml: () => capturedVisualizationHtml };
 }
 
 // ---------------------------------------------------------------------------
@@ -259,17 +333,11 @@ function extractText(content) {
   return "";
 }
 
-function extractToolCalls(aiMessage) {
-  const calls = aiMessage.tool_calls;
-  if (!calls || calls.length === 0) return [];
-  return calls.map((tc) => ({ id: tc.id, name: tc.name, arguments: tc.args }));
-}
-
 // ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
 
-async function generateChatResponse(message, conversationHistory = []) {
+async function runChatTurn(message, conversationHistory = [], userId) {
   const t0 = Date.now();
   try {
     if (!message || typeof message !== "string") {
@@ -280,133 +348,61 @@ async function generateChatResponse(message, conversationHistory = []) {
       throw new Error("Anthropic API key is not configured");
     }
 
-    const [systemMsg] = await BOOK_ASSISTANT_PROMPT.formatMessages({});
-    const messages = [
-      systemMsg,
-      ...conversationHistory,
-      new HumanMessage(message),
-    ];
+    const { tools, getVisualizationHtml } = createTools(userId);
+
+    const agent = createReactAgent({
+      llm: getModel(),
+      tools,
+      // String prompt is converted to a SystemMessage prepended to every LLM call.
+      prompt: META_PROMPT_SYSTEM,
+    });
 
     logger.info({
-      event: "claude_call",
+      event: "agent_run_start",
       model: config.claude.model,
       historyMessages: conversationHistory.length,
-      toolCount: ALL_TOOLS.length,
+      toolCount: tools.length,
+      userId,
     });
 
-    const aiMessage = await getModelWithTools().invoke(messages);
-    const toolCalls = extractToolCalls(aiMessage);
-
-    logger.info({
-      event: "claude_response",
-      toolCallCount: toolCalls.length,
-      durationMs: Date.now() - t0,
-    });
-
-    if (toolCalls.length > 0) {
-      logger.info({
-        event: "tool_calls_requested",
-        functions: toolCalls.map((c) => c.name),
-      });
-      return {
-        success: true,
-        requiresFunctionExecution: true,
-        functionCalls: toolCalls,
-        assistantMessage: aiMessage,
-        conversationHistory: [...conversationHistory, new HumanMessage(message)],
-      };
-    }
-
-    return {
-      success: true,
-      response: extractText(aiMessage.content),
-      conversationHistory: [
-        ...conversationHistory,
-        new HumanMessage(message),
-        aiMessage,
-      ],
-    };
-  } catch (error) {
-    logger.error({
-      event: "generate_chat_response_failed",
-      durationMs: Date.now() - t0,
-      err: error,
-    });
-    return {
-      error: error.message || "Failed to generate response. Please try again.",
-    };
-  }
-}
-
-async function continueAfterFunctionExecution(
-  conversationHistory,
-  assistantMessage,
-  functionResults,
-) {
-  const t0 = Date.now();
-  try {
-    const toolMessages = functionResults.map(
-      (r) =>
-        new ToolMessage({
-          tool_call_id: r.id,
-          name: r.name,
-          content: JSON.stringify(r.result),
-        }),
+    // Pass the full conversation history + the new user message as the graph
+    // input. The agent appends its intermediate and final messages in-place,
+    // so result.messages is the complete post-turn message list.
+    const result = await agent.invoke(
+      { messages: [...conversationHistory, new HumanMessage(message)] },
+      { recursionLimit: 25 },
     );
 
-    const [systemMsg] = await BOOK_ASSISTANT_PROMPT.formatMessages({});
-    const messages = [
-      systemMsg,
-      ...conversationHistory,
-      assistantMessage,
-      ...toolMessages,
-    ];
-
-    const resultNames = functionResults.map((r) => r.name);
-    logger.info({
-      event: "claude_continuation",
-      completedFunctions: resultNames,
-      model: config.claude.model,
-    });
-
-    const aiMessage = await getModelWithTools().invoke(messages);
-    const toolCalls = extractToolCalls(aiMessage);
+    const allMessages = result.messages;
+    const finalMessage = allMessages[allMessages.length - 1];
+    const finalText = extractText(finalMessage.content);
 
     logger.info({
-      event: "claude_continuation_response",
-      furtherToolCallCount: toolCalls.length,
+      event: "agent_run_complete",
+      totalMessages: allMessages.length,
       durationMs: Date.now() - t0,
+      userId,
     });
 
+    // Persist only the user turn + final assistant reply (not intermediate
+    // tool-call messages) to keep Redis history compact and well-formed.
     const updatedHistory = [
       ...conversationHistory,
-      assistantMessage,
-      ...toolMessages,
+      new HumanMessage(message),
+      new AIMessage(finalText),
     ];
-
-    if (toolCalls.length > 0) {
-      logger.info({
-        event: "further_tool_calls_requested",
-        functions: toolCalls.map((c) => c.name),
-      });
-      return {
-        success: true,
-        requiresFunctionExecution: true,
-        functionCalls: toolCalls,
-        assistantMessage: aiMessage,
-        conversationHistory: updatedHistory,
-      };
-    }
 
     return {
       success: true,
-      response: extractText(aiMessage.content),
-      conversationHistory: [...updatedHistory, aiMessage],
+      response: finalText,
+      conversationHistory: updatedHistory,
+      visualizationHtml: getVisualizationHtml(),
     };
   } catch (error) {
     logger.error({
-      event: "continue_after_function_failed",
+      event: "run_chat_turn_failed",
       durationMs: Date.now() - t0,
+      userId,
       err: error,
     });
     return {
@@ -415,7 +411,4 @@ async function continueAfterFunctionExecution(
   }
 }
 
-module.exports = {
-  generateChatResponse,
-  continueAfterFunctionExecution,
-};
+module.exports = { runChatTurn, createTools };
