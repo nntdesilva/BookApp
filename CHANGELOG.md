@@ -18,7 +18,7 @@ All notable changes to the BookApp project are documented in the [changelogs](./
 
 ### [v0.11.14](./changelogs/v0.11.14.md) - 2026-03-24
 
-Refactor: **chat-service** now uses LangChain instead of the raw Anthropic SDK. `ChatAnthropic` with `bindTools()`, Zod-backed `tool()` definitions, `ChatPromptTemplate`, and LangChain messages (`HumanMessage`, `ToolMessage`) replace direct API calls; built-in `maxRetries` supersedes manual retry logic. Conversation history is persisted with `RedisChatMessageHistory` from `@langchain/community`. Redis config’s in-memory fallback implements list commands (`lrange`, `rpush`, `lpush`, `expire`, `ltrim`) for compatibility with the message store. Added `@langchain/anthropic`, `@langchain/community`, `@langchain/core`, and `zod`; tests updated.
+Refactor: **chat-service** now uses LangChain instead of the raw Anthropic SDK. `ChatAnthropic` with `bindTools()`, Zod-backed `tool()` definitions, `ChatPromptTemplate`, and LangChain messages (`HumanMessage`, `ToolMessage`) replace direct API calls; built-in `maxRetries` supersedes manual retry logic. Conversation history is persisted with `RedisChatMessageHistory` from `@langchain/community`. Redis config’s in-memory fallback implements list commands (`lrange`, `rpush`, `lpush`, `expire`, `ltrim`) for compatibility with the message store. Added `@langchain/anthropic`, `@langchain/community`, `@langchain/core`, and `zod` ^3.x (zod v4 conflicted with the `@browserbasehq/stagehand` peer chain from `@langchain/community`, causing `npm install` ERESOLVE failures in CI and E2E). Tests updated.
 
 ### [v0.11.13](./changelogs/v0.11.13.md) - 2026-03-19
 
