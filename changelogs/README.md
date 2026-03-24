@@ -9,6 +9,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Latest Versions
 
+- **[v0.11.15](v0.11.15.md)** - 2026-03-24
+
+  - Refactor: LangGraph agent loop replaces manual while-loop in chat-service
+  - `createReactAgent` from `@langchain/langgraph/prebuilt` drives multi-round tool calling
+  - Per-request `createTools(userId)` factory with visualization HTML side-effect capture
+  - `runChatTurn` replaces `generateChatResponse` + `continueAfterFunctionExecution`
+  - `chatRoutes.js` drops the loop, switch-dispatch, and client imports
+  - History compacted to `[HumanMessage, AIMessage(final)]` per turn
+
+- **[v0.11.14](v0.11.14.md)** - 2026-03-24
+
+  - Refactor: chat-service AI layer migrated to LangChain (`ChatAnthropic`, `tool()`, `ChatPromptTemplate`, `RedisChatMessageHistory`)
+  - `maxRetries` replaces hand-rolled retry loop; Zod schemas replace raw `input_schema` objects
+
 - **[v0.11.5](v0.11.5.md)** - 2026-03-11
 
   - Bug Fix: Diagnostic logging for post-login redirect loop
